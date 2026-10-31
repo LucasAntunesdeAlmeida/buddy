@@ -1,0 +1,30 @@
+name: Release
+
+# Pushing a version tag (git tag v1.2.3 && git push origin v1.2.3) builds the
+# release zip from that commit and publishes it on the Releases page.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # to create the release
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+      - name: Build the zip
+        shell: pwsh
+        run: ./scripts/build.ps1 -Version ($env:GITHUB_REF_NAME -replace "^v", "")
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME (Get-Item dist/*.zip) --title "Buddy $env:GITHUB_REF_NAME" --generate-notes
