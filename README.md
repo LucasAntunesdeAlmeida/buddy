@@ -166,7 +166,7 @@ You need Windows 10 or 11. To build from source you also need [Go](https://go.de
 
 ### From a release
 
-1. Unzip `buddy-<version>-windows-amd64.zip` anywhere you like.
+1. Download `buddy-<version>-windows-amd64.zip` from the [Releases page](https://github.com/LucasAntunesdeAlmeida/buddy/releases) and unzip it anywhere you like.
 2. Run `buddysim.exe` once. Buddy practices for a few minutes and saves his network.
 3. Run `buddy.exe`. Buddy appears at the bottom right of your screen and in the notification area.
 
@@ -182,6 +182,8 @@ To build a release zip with Buddy's icon and no console window:
 ```powershell
 .\scripts\build.ps1 -Version 1.0.0     # writes dist\buddy-1.0.0-windows-amd64.zip
 ```
+
+Releases are built by CI: pushing a tag like `v1.0.0` builds that zip from the tagged commit and publishes it on the Releases page.
 
 ---
 
