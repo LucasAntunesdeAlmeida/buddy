@@ -1,4 +1,4 @@
-module buddy
+module github.com/LucasAntunesdeAlmeida/buddy
 
 go 1.26.5
 

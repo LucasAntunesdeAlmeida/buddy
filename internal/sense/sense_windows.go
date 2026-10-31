@@ -15,7 +15,7 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 
-	"buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
 )
 
 var (

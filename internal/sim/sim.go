@@ -9,8 +9,8 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"buddy/internal/activity"
-	"buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
 )
 
 // Tick is the time between Buddy's decisions in the simulation.

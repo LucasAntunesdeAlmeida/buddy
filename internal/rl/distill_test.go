@@ -4,7 +4,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
 )
 
 // Every sampled moment falls back into the state it was drawn from.

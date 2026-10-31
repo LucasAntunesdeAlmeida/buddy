@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
 )
 
 func TestInputsInRange(t *testing.T) {

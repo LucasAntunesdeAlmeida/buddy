@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
 )
 
 func TestDragKind(t *testing.T) {

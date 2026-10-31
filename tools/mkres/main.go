@@ -13,7 +13,7 @@ import (
 	"github.com/tc-hib/winres"
 	"github.com/tc-hib/winres/version"
 
-	"buddy/internal/ui"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/ui"
 )
 
 func main() {

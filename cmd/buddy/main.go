@@ -18,16 +18,16 @@ import (
 	"sync"
 	"time"
 
-	"buddy/internal/appdir"
-	"buddy/internal/autostart"
-	"buddy/internal/brain"
-	"buddy/internal/report"
-	"buddy/internal/rl"
-	"buddy/internal/sense"
-	"buddy/internal/settings"
-	"buddy/internal/store"
-	"buddy/internal/ui"
-	"buddy/internal/voice"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/appdir"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/autostart"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/brain"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/report"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/sense"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/settings"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/store"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/ui"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/voice"
 )
 
 // logLimit keeps the log file small: it starts over past this size.

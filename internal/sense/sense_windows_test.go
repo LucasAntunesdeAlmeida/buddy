@@ -3,7 +3,7 @@ package sense
 import (
 	"testing"
 
-	"buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
 )
 
 // Polls the real desktop once; checks the Win32 calls work, not their values.

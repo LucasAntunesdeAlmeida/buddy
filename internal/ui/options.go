@@ -4,7 +4,7 @@ import (
 	"image"
 	"time"
 
-	"buddy/internal/settings"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/settings"
 )
 
 // Options are what the window needs besides the brain's channels.

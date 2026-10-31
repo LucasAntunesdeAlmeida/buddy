@@ -8,7 +8,7 @@ package sense
 import (
 	"context"
 
-	"buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
 )
 
 // Watcher is a stand-in that never changes.

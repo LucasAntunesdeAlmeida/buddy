@@ -14,10 +14,10 @@ import (
 	"sort"
 	"time"
 
-	"buddy/internal/activity"
-	"buddy/internal/rl"
-	"buddy/internal/sim"
-	"buddy/internal/ui"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/sim"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/ui"
 )
 
 //go:embed page.html

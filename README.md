@@ -306,3 +306,9 @@ BUDDY_SNAPSHOTS=/some/folder go test ./internal/ui   # every pose as PNG, every 
 ```
 
 The race detector needs cgo and a C compiler, so `go test -race` only works where one is installed.
+
+---
+
+## License
+
+[MIT](LICENSE)

@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"buddy/internal/activity"
-	"buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
 )
 
 const (

@@ -3,8 +3,8 @@ package sim
 import (
 	"testing"
 
-	"buddy/internal/activity"
-	"buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
 )
 
 // Training against the simulated user must beat a Buddy that never acts.

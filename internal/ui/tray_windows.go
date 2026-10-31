@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"buddy/internal/brain"
-	"buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/brain"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
 )
 
 var (

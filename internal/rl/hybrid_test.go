@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
 )
 
 // Reactions go into the table right away, and into the network at its next

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
 )
 
 // Observation is everything the agent looks at before it acts.

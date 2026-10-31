@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
 )
 
 func TestEncodeRoundTrip(t *testing.T) {

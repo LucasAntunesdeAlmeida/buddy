@@ -17,9 +17,9 @@ import (
 	"sync"
 	"time"
 
-	"buddy/internal/appdir"
-	"buddy/internal/rl"
-	"buddy/internal/sim"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/appdir"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/sim"
 )
 
 func main() {

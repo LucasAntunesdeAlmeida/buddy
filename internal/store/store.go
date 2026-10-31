@@ -12,7 +12,7 @@ import (
 
 	_ "modernc.org/sqlite" // pure Go SQLite driver
 
-	"buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
 )
 
 const schema = `

@@ -18,8 +18,8 @@ import (
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
 
-	"buddy/internal/brain"
-	"buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/brain"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
 )
 
 var t0 = time.Date(2030, 1, 1, 12, 0, 0, 0, time.UTC)

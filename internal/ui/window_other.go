@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 
-	"buddy/internal/brain"
-	"buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/brain"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
 )
 
 // Run is only implemented on Windows.

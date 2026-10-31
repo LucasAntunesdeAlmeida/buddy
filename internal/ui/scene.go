@@ -17,8 +17,8 @@ import (
 	"golang.org/x/image/math/fixed"
 	"golang.org/x/image/vector"
 
-	"buddy/internal/brain"
-	"buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/brain"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
 )
 
 // Window size and Buddy's proportions, in pixels at 100% display scaling.

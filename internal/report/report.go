@@ -10,9 +10,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"buddy/internal/activity"
-	"buddy/internal/rl"
-	"buddy/internal/store"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/activity"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/rl"
+	"github.com/LucasAntunesdeAlmeida/buddy/internal/store"
 )
 
 // History is the experience log the report reads.
