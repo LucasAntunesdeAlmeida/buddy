@@ -1,3 +1,4 @@
+# Build outputs: release zips go on GitHub Releases.
 *.exe
 *.test
 *.out
@@ -5,3 +6,15 @@
 /dist/
 /buddy
 /buddysim
+
+# Buddy's data, in case he runs with -data inside the checkout: his brain
+# and activity log are personal.
+*.gob
+*.db
+*.log
+qtable.json
+said.json
+
+# Local Go workspaces.
+go.work
+go.work.sum
