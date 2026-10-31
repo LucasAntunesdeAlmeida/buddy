@@ -1,5 +1,7 @@
 *.exe
 *.test
 *.out
+*.syso
+/dist/
 /buddy
 /buddysim
