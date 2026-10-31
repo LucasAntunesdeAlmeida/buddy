@@ -24,7 +24,8 @@ func TestTrainingBeatsStayingQuiet(t *testing.T) {
 		RunDay(u, agent, true)
 	}
 	after := eval()
-	if after < before+1 {
-		t.Errorf("reward per day after training = %.2f, want at least 1 more than staying quiet (%.2f)", after, before)
+	// The simulated person habituates, so gains are modest; but they must be clear.
+	if after < before+0.5 {
+		t.Errorf("reward per day after training = %.2f, want at least 0.5 more than staying quiet (%.2f)", after, before)
 	}
 }

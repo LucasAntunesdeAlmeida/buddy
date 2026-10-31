@@ -19,6 +19,9 @@ const Tick = 30 * time.Second
 // MuteFor is how long Buddy stays asleep after being dismissed.
 const MuteFor = 30 * time.Minute
 
+// habituation is how soon after Buddy's last move the next is easy to miss.
+const habituation = 2 * time.Minute
+
 type app struct {
 	cat      activity.Category
 	weight   float64 // how often the user picks it
@@ -45,6 +48,7 @@ type User struct {
 	appEnd    time.Time
 	awayUntil time.Time
 	lastInput time.Time
+	lastSeen  time.Time // when Buddy last did anything visible
 }
 
 // NewUser starts a user at 08:00 on an arbitrary day.
@@ -141,7 +145,15 @@ func (u *User) Respond(act rl.Action, o rl.Observation, annoyance float64) rl.Re
 		}
 		return rl.Ignored
 	}
-	if u.rng.Float64() >= noticeable[act] {
+	// People stop noticing something that moves all the time: anything
+	// Buddy does soon after his last move is much easier to miss. Without
+	// this, fidgeting every 30 seconds wins more clicks than any real hello.
+	notice := noticeable[act]
+	if u.now.Sub(u.lastSeen) < habituation {
+		notice *= 0.2
+	}
+	u.lastSeen = u.now
+	if u.rng.Float64() >= notice {
 		return rl.Ignored
 	}
 

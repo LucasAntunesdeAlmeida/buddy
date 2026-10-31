@@ -45,15 +45,15 @@ func logScale(v, top float64) float64 {
 
 // Network shape and training settings.
 const (
-	hidden       = 32
-	replaySize   = 10000 // experiences kept in each memory
-	batchSize    = 32
-	minReplay    = 200  // don't train on fewer experiences than this
-	syncTarget   = 1000 // updates between target network refreshes
-	learningRate = 3e-4
-	adamBeta1    = 0.9
-	adamBeta2    = 0.999
-	huberDelta   = 1.0
+	DefaultHidden = 32    // neurons in each hidden layer
+	replaySize    = 10000 // experiences kept in each memory
+	batchSize     = 32
+	minReplay     = 200  // don't train on fewer experiences than this
+	syncTarget    = 1000 // updates between target network refreshes
+	learningRate  = 3e-4
+	adamBeta1     = 0.9
+	adamBeta2     = 0.999
+	huberDelta    = 1.0
 )
 
 // Layer is a fully connected layer with Adam optimizer state.
@@ -144,11 +144,17 @@ type Net struct {
 	rng        *rand.Rand
 	trainEvery int
 	batches    int
+	explore    float64 // floor on exploration, raised while practicing
 	grads      []Layer // reused gradient buffers
 }
 
-// NewNet returns an untrained network.
-func NewNet(seed uint64) *Net {
+// NewNet returns an untrained network with DefaultHidden neurons per layer.
+func NewNet(seed uint64) *Net { return NewNetSized(seed, DefaultHidden) }
+
+// NewNetSized returns an untrained network with hidden neurons in each of
+// its two hidden layers. Bigger can tell finer differences apart, but
+// learns slower and costs more to run.
+func NewNetSized(seed uint64, hidden int) *Net {
 	n := &Net{rng: rand.New(rand.NewPCG(seed, seed^0x2545f4914f6cdd1d)), trainEvery: 1, batches: 1}
 	n.Online = MLP{Layers: []Layer{
 		newLayer(NumInputs, hidden, n.rng, 1),
@@ -219,7 +225,13 @@ func (n *Net) Act(o Observation) (Action, bool) {
 }
 
 // Epsilon implements Learner.
-func (n *Net) Epsilon() float64 { return epsilon(n.Steps) }
+func (n *Net) Epsilon() float64 { return max(n.explore, epsilon(n.Steps)) }
+
+// SetExploration keeps random tries at a rate of at least floor. Practice
+// uses a high floor so the network keeps trying every action instead of
+// settling on the first that works; with a real person it's left at zero,
+// since random tries annoy people.
+func (n *Net) SetExploration(floor float64) { n.explore = floor }
 
 // SimScore implements Learner.
 func (n *Net) SimScore() float64 { return n.Sim }
