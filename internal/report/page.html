@@ -284,9 +284,14 @@ function drawNet(m) {
   svg.replaceChildren();
   const sizes = D.network.sizes, W = 1040, H = 540;
   const xs = [150, 420, 690, 870];
-  const pos = sizes.map((n, l) => Array.from({ length: n }, (_, i) => ({ x: xs[l], y: 20 + (i + 0.5) * (H - 20) / n })));
+  // Big layers stagger their neurons into two columns, so each dot has room
+  // to be seen.
+  const zig = n => n > 40;
+  const pos = sizes.map((n, l) => Array.from({ length: n }, (_, i) => ({
+    x: xs[l] + (zig(n) ? (i % 2 ? 7 : -7) : 0), y: 20 + (i + 0.5) * (H - 20) / n,
+  })));
 
-  // Lines: the strongest signals in this moment, per layer.
+  // Lines: the strongest signals in this moment, a few per neuron.
   m.flows.forEach((fs, l) => {
     const max = Math.max(...fs.map(f => Math.abs(f.v)), 1e-9);
     fs.slice().reverse().forEach(f => {
@@ -305,10 +310,13 @@ function drawNet(m) {
     const max = Math.max(...vals.map(Math.abs), 1e-9);
     col.forEach((p, i) => {
       const v = vals[i];
-      let fill, r = Math.max(1.6, Math.min(l === 0 || l === 3 ? 7 : 5.5, (H - 20) / col.length / 2.6));
+      const gap = (H - 20) / col.length * (zig(col.length) ? 2 : 1);
+      let fill, r = Math.max(1.6, Math.min(l === 0 || l === 3 ? 7 : 5.5, gap / 2.4));
+      // Square root, so a neuron at a quarter of the busiest one's activity
+      // still shows at about half brightness instead of fading out.
       if (l === 3) fill = i === m.best ? ACTION_COLOR[i] : "var(--surface-2)";
-      else fill = v > 0 ? `rgba(var(--neuron), ${0.15 + 0.85 * Math.min(1, v / max)})` : "var(--surface-2)";
-      const c = el("circle", { cx: p.x, cy: p.y, r, fill, stroke: "var(--line)", "stroke-width": 1.2 }, svg);
+      else fill = v > 0 ? `rgba(var(--neuron), ${0.3 + 0.7 * Math.sqrt(Math.min(1, v / max))})` : "var(--surface-2)";
+      const c = el("circle", { cx: p.x, cy: p.y, r, fill, stroke: "var(--line)", "stroke-width": zig(col.length) ? 0.8 : 1.2 }, svg);
       const name = l === 0 ? D.network.inputs[i] : l === 3 ? ACTION_NAME[D.actions[i]] : `neuron ${i + 1} (layer ${l})`;
       hover(c, `<b>${name}</b><br>${l === 0 ? "input" : l === 3 ? "expected value" : "activity"} ${v.toFixed(3)}` + (l > 0 && l < 3 && v <= 0 ? "<br>(switched off in this moment)" : ""));
       if (l === 0) text(svg, p.x - 14, p.y + 4, D.network.inputs[i], { "text-anchor": "end" });
@@ -329,9 +337,10 @@ if (D.network) {
   document.getElementById("netLead").textContent =
     `Signals flow left to right. Buddy sees each moment two ways at once: as smooth numbers (the top 14 inputs) and as the buckets his diary table uses (the other ${nIn - 14}). ` +
     `They feed two layers of ${h1} and ${h2} artificial neurons, which feed one output per action. ` +
-    "Each line is a connection whose strength Buddy learned. Only the connections carrying the most signal right now are drawn: " +
-    "blue ones push the next neuron up, red ones push it down. A neuron that ends up below zero switches off, which is how the network " +
-    "learns rules like \"never chirp during a game\". Hover over anything for numbers.";
+    "Each line is a connection whose strength Buddy learned. Only the connections carrying the most signal right now are drawn, at most three from each neuron: " +
+    "blue ones push the next neuron up, red ones push it down. A neuron that ends up below zero switches off for this moment (grey), which is how the network " +
+    "learns rules like \"never chirp during a game\". Each moment wakes only the neurons that matter for it, so many are grey at any time; " +
+    "every one of them fires in some other moment. Hover over anything for numbers.";
 } else {
   document.getElementById("netBlock").innerHTML =
     "<h3>His brain is a table</h3><p class='lead'>Buddy is using his Q-table brain right now: he sorts each moment into one of about 7,800 situations " +

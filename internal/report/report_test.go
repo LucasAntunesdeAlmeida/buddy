@@ -3,10 +3,12 @@ package report
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"strings"
 	"testing"
 	"time"
 
+	"buddy/internal/activity"
 	"buddy/internal/rl"
 	"buddy/internal/store"
 )
@@ -74,6 +76,28 @@ func TestWriteHTML(t *testing.T) {
 		shape := fmt.Sprintf(`"network":{"sizes":[%d,%d,%d,%d]`, rl.NumInputs, rl.DefaultHidden, rl.DefaultHidden, rl.NumActions)
 		if l.Kind() == "network" && !strings.Contains(out, shape) {
 			t.Error("network report lacks the network's shape")
+		}
+	}
+}
+
+func TestFlowsSpreadAcrossNeurons(t *testing.T) {
+	t.Parallel()
+	o := rl.Observation{Snapshot: activity.Snapshot{Activity: 0.6, InApp: 20 * time.Minute, Back: -1}, Hour: 15}
+	// A new network's output weights start at zero; a little study gives
+	// every layer some signal.
+	table := rl.NewAgent(1)
+	table.Learn(o, rl.Wave, 1, o)
+	net := rl.NewNet(1)
+	net.Distill(table, []rl.Observation{o}, 20, rand.New(rand.NewPCG(1, 2)))
+	for li, fs := range flows(net, net.Activations(o)) {
+		if len(fs) == 0 {
+			t.Errorf("layer %d: no lines", li)
+		}
+		sent := map[int]int{}
+		for _, f := range fs {
+			if sent[f.From]++; sent[f.From] > 3 {
+				t.Errorf("layer %d: neuron %d sends more than 3 lines", li, f.From)
+			}
 		}
 	}
 }

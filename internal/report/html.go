@@ -264,9 +264,11 @@ func describe(l rl.Learner, net *rl.Net, m moment) momentV {
 }
 
 // flows finds, for each layer, the connections carrying the most signal in
-// this moment: weight times how active the neuron feeding it is.
+// this moment: weight times how active the neuron feeding it is. Each neuron
+// sends at most a few, so one very active neuron can't take every line and
+// hide the rest.
 func flows(net *rl.Net, acts [][]float64) [][]flowV {
-	const keep = 18
+	const keep, perNeuron = 24, 3
 	var out [][]flowV
 	for li, layer := range net.Online.Layers {
 		in := acts[li]
@@ -279,7 +281,18 @@ func flows(net *rl.Net, acts [][]float64) [][]flowV {
 			}
 		}
 		sort.Slice(fs, func(a, b int) bool { return math.Abs(fs[a].V) > math.Abs(fs[b].V) })
-		out = append(out, fs[:min(keep, len(fs))])
+		sent := make([]int, layer.In)
+		var kept []flowV
+		for _, f := range fs {
+			if len(kept) == keep {
+				break
+			}
+			if sent[f.From] < perNeuron {
+				sent[f.From]++
+				kept = append(kept, f)
+			}
+		}
+		out = append(out, kept)
 	}
 	return out
 }
