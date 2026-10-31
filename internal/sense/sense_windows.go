@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 
 	"buddy/internal/activity"
 )
@@ -25,17 +26,20 @@ var (
 	procGetWindowThreadProcessId = user32.NewProc("GetWindowThreadProcessId")
 	procGetLastInputInfo         = user32.NewProc("GetLastInputInfo")
 	procGetWindowRect            = user32.NewProc("GetWindowRect")
-	procGetSystemMetrics         = user32.NewProc("GetSystemMetrics")
 	procGetCursorPos             = user32.NewProc("GetCursorPos")
 	procGetTickCount             = kernel32.NewProc("GetTickCount")
+	procMonitorFromWindow        = user32.NewProc("MonitorFromWindow")
+	procGetMonitorInfoW          = user32.NewProc("GetMonitorInfoW")
+	procSHQueryUserNotification  = windows.NewLazySystemDLL("shell32.dll").NewProc("SHQueryUserNotificationState")
 )
 
 const (
 	poll        = 250 * time.Millisecond
 	window      = time.Minute // activity is measured over this span
-	smCXScreen  = 0
-	smCYScreen  = 1
 	historySize = int(window / poll)
+	busyEvery   = 2 * time.Second // how often to check for calls and presentations
+
+	monitorDefaultToNearest = 2
 )
 
 type lastInputInfo struct {
@@ -65,6 +69,9 @@ type Watcher struct {
 	history   [historySize]bool
 	next      int
 	away      bool
+	backAt    time.Time // when the user last came back from being away
+	busyAt    time.Time // when busy was last checked
+	busyWhy   string
 }
 
 // NewWatcher returns a watcher. Call Run to start it.
@@ -139,6 +146,20 @@ func (w *Watcher) poll() {
 	if away != w.away {
 		w.away = away
 		notable = true
+		if !away {
+			w.backAt = now
+		}
+	}
+	if now.Sub(w.busyAt) >= busyEvery {
+		w.busyAt = now
+		if why := busyReason(); why != w.busyWhy {
+			w.busyWhy = why
+			notable = true
+		}
+	}
+	back := time.Duration(-1)
+	if !w.backAt.IsZero() {
+		back = now.Sub(w.backAt)
 	}
 
 	w.mu.Lock()
@@ -147,6 +168,9 @@ func (w *Watcher) poll() {
 		Idle:     idle,
 		Activity: float64(busy) / float64(historySize),
 		InApp:    now.Sub(w.since),
+		Back:     back,
+		Busy:     w.busyWhy != "",
+		BusyWhy:  w.busyWhy,
 	}
 	w.mu.Unlock()
 
@@ -186,7 +210,14 @@ func processName(hwnd uintptr) string {
 	return strings.ToLower(filepath.Base(windows.UTF16ToString(buf[:n])))
 }
 
-// fullscreen reports whether the window covers the whole primary screen.
+type monitorInfo struct {
+	size    uint32
+	monitor rect
+	work    rect
+	flags   uint32
+}
+
+// fullscreen reports whether the window covers the whole monitor it's on.
 func fullscreen(hwnd uintptr) bool {
 	if hwnd == 0 {
 		return false
@@ -195,9 +226,87 @@ func fullscreen(hwnd uintptr) bool {
 	if ok, _, _ := procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&r))); ok == 0 {
 		return false
 	}
-	w, _, _ := procGetSystemMetrics.Call(smCXScreen)
-	h, _, _ := procGetSystemMetrics.Call(smCYScreen)
-	return r.left <= 0 && r.top <= 0 && r.right >= int32(w) && r.bottom >= int32(h)
+	m, ok := monitorOf(hwnd)
+	if !ok {
+		return false
+	}
+	return r.left <= m.monitor.left && r.top <= m.monitor.top && r.right >= m.monitor.right && r.bottom >= m.monitor.bottom
+}
+
+// monitorOf returns the monitor a window is on.
+func monitorOf(hwnd uintptr) (monitorInfo, bool) {
+	mon, _, _ := procMonitorFromWindow.Call(hwnd, monitorDefaultToNearest)
+	mi := monitorInfo{size: uint32(unsafe.Sizeof(monitorInfo{}))}
+	if ok, _, _ := procGetMonitorInfoW.Call(mon, uintptr(unsafe.Pointer(&mi))); ok == 0 {
+		return mi, false
+	}
+	return mi, true
+}
+
+// Values of QUERY_USER_NOTIFICATION_STATE that mean "don't disturb".
+const (
+	qunsBusy             = 2 // a full-screen app
+	qunsD3DFullScreen    = 3 // a full-screen game
+	qunsPresentationMode = 4
+	qunsApp              = 7 // a full-screen store app
+)
+
+// busyReason says why Buddy must keep still, or "" if it needn't. It never
+// names the app, so the reason is safe to log.
+func busyReason() string {
+	if capabilityInUse("microphone") {
+		return "microphone in use"
+	}
+	if capabilityInUse("webcam") {
+		return "camera in use"
+	}
+	var state int32
+	if hr, _, _ := procSHQueryUserNotification.Call(uintptr(unsafe.Pointer(&state))); hr == 0 {
+		switch state {
+		case qunsPresentationMode:
+			return "presenting"
+		case qunsBusy, qunsD3DFullScreen, qunsApp:
+			return "full screen"
+		}
+	}
+	return ""
+}
+
+// capabilityInUse reports whether any app is using the microphone or camera
+// right now. Windows records each app's last use under the privacy consent
+// store; a start time without a stop time means it's still in use. Calls are
+// what this catches.
+func capabilityInUse(name string) bool {
+	base := `Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\` + name
+	var check func(path string) bool
+	check = func(path string) bool {
+		k, err := registry.OpenKey(registry.CURRENT_USER, path, registry.ENUMERATE_SUB_KEYS)
+		if err != nil {
+			return false
+		}
+		defer k.Close()
+		apps, _ := k.ReadSubKeyNames(-1)
+		for _, app := range apps {
+			if app == "NonPackaged" { // desktop apps live one level down
+				if check(path + `\NonPackaged`) {
+					return true
+				}
+				continue
+			}
+			ak, err := registry.OpenKey(registry.CURRENT_USER, path+`\`+app, registry.QUERY_VALUE)
+			if err != nil {
+				continue
+			}
+			start, _, errStart := ak.GetIntegerValue("LastUsedTimeStart")
+			stop, _, errStop := ak.GetIntegerValue("LastUsedTimeStop")
+			ak.Close()
+			if errStart == nil && errStop == nil && start > 0 && stop == 0 {
+				return true
+			}
+		}
+		return false
+	}
+	return check(base)
 }
 
 // CursorPos returns the mouse position on screen in physical pixels.

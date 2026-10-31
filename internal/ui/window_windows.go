@@ -58,35 +58,37 @@ var (
 )
 
 const (
-	wsPopup         = 0x80000000
-	wsExTopmost     = 0x00000008
-	wsExToolWindow  = 0x00000080
-	wsExLayered     = 0x00080000
-	wsExNoActivate  = 0x08000000
-	swShowNoActive  = 4
-	swpNoSize       = 0x0001
-	swpNoActivate   = 0x0010
-	ulwAlpha        = 0x00000002
-	acSrcAlpha      = 0x01
-	spiGetWorkArea  = 0x0030
-	idcHand         = 32649
-	mfString        = 0x0000
-	mfSeparator     = 0x0800
-	tpmRightButton  = 0x0002
-	tpmNoNotify     = 0x0080
-	tpmReturnCmd    = 0x0100
-	sndAsync        = 0x0001
-	sndNoDefault    = 0x0002
-	sndMemory       = 0x0004
-	wmNull          = 0x0000
-	wmDestroy       = 0x0002
-	wmTimer         = 0x0113
-	wmMouseMove     = 0x0200
-	wmLButtonDown   = 0x0201
-	wmLButtonUp     = 0x0202
-	wmRButtonUp     = 0x0205
-	wmCaptureChange = 0x0215
-	wmDPIChanged    = 0x02E0
+	wsPopup           = 0x80000000
+	wsExTopmost       = 0x00000008
+	wsExToolWindow    = 0x00000080
+	wsExLayered       = 0x00080000
+	wsExNoActivate    = 0x08000000
+	swShowNoActive    = 4
+	swpNoSize         = 0x0001
+	swpNoActivate     = 0x0010
+	ulwAlpha          = 0x00000002
+	acSrcAlpha        = 0x01
+	spiGetWorkArea    = 0x0030
+	idcHand           = 32649
+	mfString          = 0x0000
+	mfSeparator       = 0x0800
+	tpmRightButton    = 0x0002
+	tpmNoNotify       = 0x0080
+	tpmReturnCmd      = 0x0100
+	sndAsync          = 0x0001
+	sndNoDefault      = 0x0002
+	sndMemory         = 0x0004
+	wmNull            = 0x0000
+	wmDestroy         = 0x0002
+	wmTimer           = 0x0113
+	wmMouseMove       = 0x0200
+	wmLButtonDown     = 0x0201
+	wmLButtonUp       = 0x0202
+	wmRButtonUp       = 0x0205
+	wmCaptureChange   = 0x0215
+	wmDPIChanged      = 0x02E0
+	wmQueryEndSession = 0x0011
+	wmEndSession      = 0x0016
 
 	// Frame intervals in milliseconds. Buddy only redraws fast while something moves.
 	frameMoving = 33  // about 30 frames a second
@@ -157,13 +159,15 @@ type window struct {
 	commands  <-chan brain.Command
 	reactions chan<- rl.Reaction
 	scene     *Scene
+	opts      Options
 
-	hwnd   uintptr
-	memDC  uintptr
-	bitmap uintptr
-	bits   []byte
-	scale  float64
-	x, y   int // window position, physical pixels
+	hwnd     uintptr
+	trayIcon uintptr
+	memDC    uintptr
+	bitmap   uintptr
+	bits     []byte
+	scale    float64
+	x, y     int // window position, physical pixels
 
 	interval   uintptr // current frame interval
 	pressing   bool
@@ -172,6 +176,9 @@ type window struct {
 	startAt    point // window position when the button went down
 	lastMove   point // cursor at the last drag speed sample
 	lastMoveAt time.Time
+	pathLen    float64 // how far the cursor travelled during this drag
+	lastPath   point
+	grabbedAt  time.Time
 	walking    bool
 	walkX      float64
 	walkY      float64
@@ -190,7 +197,7 @@ var (
 
 // Run shows Buddy and runs its window until Buddy is quit or ctx is done.
 // It must be called from the main goroutine.
-func Run(ctx context.Context, commands <-chan brain.Command, reactions chan<- rl.Reaction) error {
+func Run(ctx context.Context, commands <-chan brain.Command, reactions chan<- rl.Reaction, opts Options) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	// Draw sharply on scaled displays instead of letting Windows stretch a blurry bitmap.
@@ -200,7 +207,7 @@ func Run(ctx context.Context, commands <-chan brain.Command, reactions chan<- rl
 	if err != nil {
 		return err
 	}
-	w := &window{ctx: ctx, commands: commands, reactions: reactions, scene: scene}
+	w := &window{ctx: ctx, commands: commands, reactions: reactions, scene: scene, opts: opts}
 	current = w
 
 	instance, _, _ := procGetModuleHandleW.Call(0)
@@ -236,14 +243,17 @@ func Run(ctx context.Context, commands <-chan brain.Command, reactions chan<- rl
 		return err
 	}
 
-	// Start at the bottom right, just above the taskbar.
-	var work rect
-	procSystemParametersInfoW.Call(spiGetWorkArea, 0, uintptr(unsafe.Pointer(&work)), 0)
+	// Start at the bottom right of the main monitor, just above the taskbar.
+	work := workAreaAt(point{})
 	sw, sh := w.scene.Size()
 	w.move(int(work.right)-sw-int(20*w.scale), int(work.bottom)-sh)
 
 	w.present()
 	procShowWindow.Call(w.hwnd, swShowNoActive)
+	w.addTray()
+	if opts.paused(time.Now()) {
+		w.scene.Sleep(time.Now())
+	}
 	w.pace(time.Now())
 
 	var m msg
@@ -278,9 +288,12 @@ func (w *window) handle(hwnd uintptr, m uint32, wp, lp uintptr) uintptr {
 				w.walking = false // a drag cancels walking toward the cursor
 				w.scene.Grab(now)
 				w.lastMove, w.lastMoveAt = c, now
+				w.lastPath, w.pathLen, w.grabbedAt = w.pressAt, 0, now
 			}
 			if w.dragged {
 				w.move(int(w.startAt.x)+dx, int(w.startAt.y)+dy)
+				w.pathLen += math.Hypot(float64(c.x-w.lastPath.x), float64(c.y-w.lastPath.y))
+				w.lastPath = c
 				// Tell the scene how fast Buddy is carried, so it swings.
 				if dt := now.Sub(w.lastMoveAt).Seconds(); dt > 0.005 {
 					w.scene.Drag(float64(c.x-w.lastMove.x) / w.scale / dt)
@@ -297,7 +310,7 @@ func (w *window) handle(hwnd uintptr, m uint32, wp, lp uintptr) uintptr {
 		procReleaseCapture.Call()
 		if w.dragged {
 			w.scene.Release(time.Now())
-			w.send(rl.Dragged)
+			w.send(w.dragKind(cursor()))
 		} else {
 			w.send(rl.Clicked)
 			w.scene.Poke(time.Now())
@@ -312,7 +325,19 @@ func (w *window) handle(hwnd uintptr, m uint32, wp, lp uintptr) uintptr {
 		w.pressing = false
 		return 0
 	case wmRButtonUp:
-		w.menu()
+		w.menu(true)
+		return 0
+	case wmTray:
+		if uint32(lp) == wmRButtonUp || uint32(lp) == wmLButtonUp {
+			w.menu(false)
+		}
+		return 0
+	case wmQueryEndSession:
+		return 1 // yes, Windows may sign out or shut down
+	case wmEndSession:
+		if wp != 0 && w.opts.OnEnd != nil {
+			w.opts.OnEnd() // Windows ends the app once this returns, so save now
+		}
 		return 0
 	case wmDPIChanged:
 		// Redraw at the new monitor's scale; Buddy keeps its position.
@@ -322,7 +347,12 @@ func (w *window) handle(hwnd uintptr, m uint32, wp, lp uintptr) uintptr {
 		return 0
 	case wmDestroy:
 		procKillTimer.Call(hwnd, 1)
+		w.removeTray()
 		procPostQuitMessage.Call(0)
+		return 0
+	}
+	if m == taskbarCreated && m != 0 {
+		w.addTray() // Explorer restarted and lost the icon
 		return 0
 	}
 	r, _, _ := procDefWindowProcW.Call(hwnd, uintptr(m), wp, lp)
@@ -341,7 +371,7 @@ func (w *window) tick() {
 		select {
 		case c := <-w.commands:
 			e := w.scene.Apply(c, now)
-			if e.Sound {
+			if e.Sound && w.opts.soundOn() {
 				procPlaySoundW.Call(uintptr(unsafe.Pointer(&chirp[0])), 0, sndMemory|sndAsync|sndNoDefault)
 			}
 			if e.Walk {
@@ -379,37 +409,9 @@ func (w *window) send(r rl.Reaction) {
 	}
 }
 
-func (w *window) menu() {
-	m, _, _ := procCreatePopupMenu.Call()
-	defer procDestroyMenu.Call(m)
-	away, _ := windows.UTF16PtrFromString(fmt.Sprintf("Go away for %d minutes", int(brain.MuteFor.Minutes())))
-	quit, _ := windows.UTF16PtrFromString("Quit Buddy")
-	procAppendMenuW.Call(m, mfString, menuAway, uintptr(unsafe.Pointer(away)))
-	procAppendMenuW.Call(m, mfSeparator, 0, 0)
-	procAppendMenuW.Call(m, mfString, menuQuit, uintptr(unsafe.Pointer(quit)))
-
-	c := cursor()
-	// A popup menu only closes properly when its window is in the foreground.
-	procSetForegroundWindow.Call(w.hwnd)
-	choice, _, _ := procTrackPopupMenu.Call(m, tpmReturnCmd|tpmRightButton|tpmNoNotify, uintptr(c.x), uintptr(c.y), 0, w.hwnd, 0)
-	procPostMessageW.Call(w.hwnd, wmNull, 0, 0)
-
-	switch choice {
-	case menuAway:
-		w.send(rl.Dismissed)
-		w.scene.Sleep(time.Now())
-		w.walking = false
-		w.present()
-		w.pace(time.Now())
-	case menuQuit:
-		procDestroyWindow.Call(w.hwnd)
-	}
-}
-
 func (w *window) startWalk() {
 	c := cursor()
-	var work rect
-	procSystemParametersInfoW.Call(spiGetWorkArea, 0, uintptr(unsafe.Pointer(&work)), 0)
+	work := workAreaAt(c) // the monitor the cursor is on
 	sw, sh := w.scene.Size()
 	// Stop a little to the left of the cursor, Buddy's feet at its height.
 	tx := float64(c.x) - (bodyX+bodyRX+50)*w.scale
@@ -492,4 +494,17 @@ func abs(v int) int {
 		return -v
 	}
 	return v
+}
+
+// dragKind tells moving Buddy out of the way from playing with it. Out of
+// the way is a clear move somewhere else; play is a short wiggle, a long
+// carry, or a winding path that ends near where it started.
+func (w *window) dragKind(end point) rl.Reaction {
+	moved := math.Hypot(float64(end.x-w.pressAt.x), float64(end.y-w.pressAt.y)) / w.scale
+	path := w.pathLen / w.scale
+	held := time.Since(w.grabbedAt)
+	if moved < 40 || path > 2.5*moved || held > 3*time.Second {
+		return rl.Played
+	}
+	return rl.Dragged
 }

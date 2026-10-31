@@ -20,6 +20,7 @@ func TestPoll(t *testing.T) {
 	if s.Idle < 0 {
 		t.Errorf("Idle = %v, want >= 0", s.Idle)
 	}
+	t.Logf("busy: %q", busyReason())
 	if _, _, ok := CursorPos(); !ok {
 		t.Log("no cursor position (headless session?)")
 	}

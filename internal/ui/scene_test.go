@@ -279,3 +279,21 @@ func BenchmarkRender(b *testing.B) {
 		s.Render(now)
 	}
 }
+
+func TestIconImage(t *testing.T) {
+	for _, size := range []int{16, 32, 48} {
+		img, err := IconImage(size)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opaque := 0
+		for i := 3; i < len(img.Pix); i += 4 {
+			if img.Pix[i] == 0xff {
+				opaque++
+			}
+		}
+		if opaque < size*size/4 {
+			t.Errorf("%dpx icon is only %d/%d opaque, Buddy should fill it", size, opaque, size*size)
+		}
+	}
+}

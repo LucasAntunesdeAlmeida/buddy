@@ -186,9 +186,30 @@ type DayStats struct {
 	Dismissals int
 }
 
+// Score is DayStats averaged over several days.
+type Score struct {
+	Reward, Attention, Clicks, Dismissals float64
+}
+
+// Evaluate runs the learner's best policy, without exploring or learning,
+// for days on a separate user, so luck during training doesn't count.
+func Evaluate(l rl.Learner, seed uint64, days int) Score {
+	var s Score
+	u := NewUser(seed)
+	for range days {
+		d := RunDay(u, l, false)
+		s.Reward += d.Reward
+		s.Attention += float64(d.Attention)
+		s.Clicks += float64(d.Clicks)
+		s.Dismissals += float64(d.Dismissals)
+	}
+	n := float64(days)
+	return Score{s.Reward / n, s.Attention / n, s.Clicks / n, s.Dismissals / n}
+}
+
 // RunDay simulates one 24-hour day. If learn is true the agent is updated
 // after every step.
-func RunDay(u *User, agent *rl.Agent, learn bool) DayStats {
+func RunDay(u *User, agent rl.Learner, learn bool) DayStats {
 	var (
 		stats      DayStats
 		mood       rl.Annoyance // the user's real mood
@@ -213,12 +234,11 @@ func RunDay(u *User, agent *rl.Agent, learn bool) DayStats {
 			u.Advance(Tick)
 			continue
 		}
-		s := rl.Encode(o)
 		var act rl.Action
 		if learn {
-			act, _ = agent.Choose(s, o.Focused())
+			act, _ = agent.Act(o)
 		} else {
-			act = agent.Greedy(s)
+			act = agent.Best(o)
 		}
 		// Extra irritation when Buddy acts again soon after the last time.
 		if act.Attention() && o.SinceAction < 2*time.Minute {
@@ -243,7 +263,7 @@ func RunDay(u *User, agent *rl.Agent, learn bool) DayStats {
 
 		u.Advance(Tick)
 		if learn {
-			agent.Update(s, act, reward, rl.Encode(observe()))
+			agent.Learn(o, act, reward, observe())
 		}
 	}
 	return stats

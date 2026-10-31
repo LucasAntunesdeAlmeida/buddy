@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"math"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -36,6 +35,7 @@ type Row struct {
 type Agent struct {
 	Q     map[State]*Row `json:"q"`
 	Steps int            `json:"steps"`
+	Sim   float64        `json:"sim_score,omitempty"` // see Learner.SimScore
 
 	rng *rand.Rand
 }
@@ -64,7 +64,7 @@ func (a *Agent) Values(s State) [NumActions]float64 {
 
 // Epsilon is the current chance of trying a random action.
 func (a *Agent) Epsilon() float64 {
-	return epsilonMin + (epsilonMax-epsilonMin)*math.Exp(-float64(a.Steps)/epsilonLag)
+	return epsilon(a.Steps)
 }
 
 // calmActions are the only ones Buddy experiments with while the user is focused.

@@ -10,8 +10,12 @@ import (
 
 // File names inside the data folder.
 const (
-	QTable = "qtable.json"
-	Log    = "buddy.db"
+	QTable   = "qtable.json"
+	Log      = "buddy.db"
+	Net      = "network.gob"
+	Settings = "settings.json"
+	Said     = "said.json" // what Buddy said lately, so it doesn't repeat itself
+	LogFile  = "buddy.log"
 )
 
 // Default returns %AppData%\buddy on Windows (and the equivalent elsewhere).

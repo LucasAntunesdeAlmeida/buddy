@@ -18,7 +18,7 @@ type Watcher struct{ changes chan struct{} }
 func NewWatcher() *Watcher { return &Watcher{changes: make(chan struct{})} }
 
 // Snapshot returns a fixed snapshot.
-func (w *Watcher) Snapshot() activity.Snapshot { return activity.Snapshot{Activity: 0.3} }
+func (w *Watcher) Snapshot() activity.Snapshot { return activity.Snapshot{Activity: 0.3, Back: -1} }
 
 // Changes never fires.
 func (w *Watcher) Changes() <-chan struct{} { return w.changes }

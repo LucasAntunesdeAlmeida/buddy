@@ -43,6 +43,14 @@ type Snapshot struct {
 	Activity float64
 	// InApp is how long the current foreground app has been in front.
 	InApp time.Duration
+	// Back is how long since the user came back from being away, or
+	// negative if they haven't been away since Buddy started.
+	Back time.Duration
+	// Busy is set when Buddy must stay still and silent no matter what it
+	// learned: during calls, presentations and full-screen apps.
+	Busy bool
+	// BusyWhy says what made the user busy, for the log.
+	BusyWhy string
 }
 
 // Away reports whether the user has left the computer.

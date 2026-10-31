@@ -39,9 +39,10 @@ const (
 	Clicked            // clicked Buddy
 	Dragged            // moved Buddy out of the way
 	Dismissed          // told Buddy to go away
+	Played             // carried Buddy around for fun, which says nothing about the action
 )
 
-var reactionNames = [...]string{"ignored", "clicked", "dragged", "dismissed"}
+var reactionNames = [...]string{"ignored", "clicked", "dragged", "dismissed", "played"}
 
 func (r Reaction) String() string {
 	if int(r) >= len(reactionNames) {
@@ -62,6 +63,7 @@ const (
 	annoyDrag      = 1.0
 	annoyDismiss   = 2.0
 	annoyClick     = -0.5
+	annoyPlay      = -0.25 // playing with Buddy is a good sign
 	annoyHalfLife  = 20 * time.Minute
 )
 
@@ -112,6 +114,8 @@ func (a *Annoyance) Observe(now time.Time, act Action, r Reaction) {
 		d = annoyDrag
 	case Dismissed:
 		d = annoyDismiss
+	case Played:
+		d = annoyPlay
 	case Ignored:
 		if act.Attention() {
 			d = annoyIgnored

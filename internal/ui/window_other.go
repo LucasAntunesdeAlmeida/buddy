@@ -11,6 +11,6 @@ import (
 )
 
 // Run is only implemented on Windows.
-func Run(context.Context, <-chan brain.Command, chan<- rl.Reaction) error {
+func Run(context.Context, <-chan brain.Command, chan<- rl.Reaction, Options) error {
 	return errors.New("Buddy's window needs Windows")
 }
