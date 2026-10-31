@@ -12,6 +12,9 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
 	"time"
 
 	"buddy/internal/appdir"
@@ -36,6 +39,7 @@ func run() error {
 		tableDays = flag.Int("days", 2000, "simulated days for the table to practice")
 		rounds    = flag.Int("rounds", 6, "rounds in which the network drives and learns from its mistakes")
 		hidden    = flag.Int("net-hidden", rl.DefaultHidden, "neurons in each of the network's two hidden layers")
+		nets      = flag.Int("nets", 3, "networks to train side by side; the best is kept")
 		seed      = flag.Uint64("seed", 1, "random seed")
 		force     = flag.Bool("force", false, "overwrite existing brains, losing what Buddy learned from you")
 	)
@@ -57,11 +61,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	table, err := rl.Load(tablePath, *seed)
-	if err != nil {
-		return err
-	}
-	nr, err := study(table, netPath, *hidden, *rounds, *seed, judge)
+	nr, err := study(tablePath, netPath, *hidden, *rounds, *nets, *seed, judge)
 	if err != nil {
 		return err
 	}
@@ -124,10 +124,62 @@ func practice(l rl.Learner, path string, days int, seed uint64, judge judging, o
 // wrong: small errors lead to moments the table rarely saw, where the copy
 // is worse, which lead to more errors. Learning on its own trips (the
 // "DAgger" method) teaches the network to recover.
-func study(table *rl.Agent, path string, hidden, rounds int, seed uint64, judge judging) (result, error) {
+//
+// How well that goes varies with luck, so several networks study side by
+// side, each from its own random start, and the best is kept.
+func study(tablePath, path string, hidden, rounds, nets int, seed uint64, judge judging) (result, error) {
 	start := time.Now()
-	fmt.Printf("\nThe network (%d neurons per layer) learns from the table\n", hidden)
-	fmt.Printf("%8s %10s %10s %8s %10s %10s\n", "round", "reward/day", "attempts", "clicks", "sent away", "moments")
+	type try struct {
+		path string
+		best float64
+		log  strings.Builder
+		err  error
+	}
+	tries := make([]*try, nets)
+	var wg sync.WaitGroup
+	for i := range tries {
+		t := &try{path: fmt.Sprintf("%s.try%d", path, i)}
+		tries[i] = t
+		s := seed + uint64(i)*7919
+		wg.Go(func() {
+			fmt.Fprintf(&t.log, "\nNetwork %d of %d (%d neurons per layer) learns from the table\n", i+1, nets, hidden)
+			t.best, t.err = studyOne(tablePath, t.path, hidden, rounds, s, judge, &t.log)
+		})
+	}
+	wg.Wait()
+
+	var best *try
+	for _, t := range tries {
+		fmt.Print(t.log.String())
+		if t.err != nil {
+			return result{}, t.err
+		}
+		if best == nil || t.best > best.best {
+			best = t
+		}
+	}
+	for _, t := range tries {
+		if t != best {
+			os.Remove(t.path)
+		}
+	}
+	if err := os.Rename(best.path, path); err != nil {
+		return result{}, err
+	}
+	fmt.Printf("\nkept network %d of %d\n", slices.Index(tries, best)+1, nets)
+	return finish("network", path, seed, judge, start, os.Stdout)
+}
+
+// studyOne trains one network and keeps its best round at path, returning
+// that round's score.
+func studyOne(tablePath, path string, hidden, rounds int, seed uint64, judge judging, out io.Writer) (float64, error) {
+	// Each network gets its own copy of the table: the table's random
+	// choices aren't safe to share between networks studying at once.
+	table, err := rl.Load(tablePath, seed)
+	if err != nil {
+		return 0, err
+	}
+	fmt.Fprintf(out, "%8s %10s %10s %8s %10s %10s\n", "round", "reward/day", "attempts", "clicks", "sent away", "moments")
 	n := rl.NewNetSized(seed, hidden)
 	rng := rand.New(rand.NewPCG(seed, 9))
 	moments := sim.Moments(table, seed+3000, 100, 40000)
@@ -140,15 +192,15 @@ func study(table *rl.Agent, path string, hidden, rounds int, seed uint64, judge 
 			n.Distill(table, moments, 4, rng)
 		}
 		e := sim.Evaluate(n, judge.progress, 100)
-		fmt.Printf("%8d %10.2f %10.1f %8.1f %10.2f %9dk\n", round, e.Reward, e.Attention, e.Clicks, e.Dismissals, len(moments)/1000)
+		fmt.Fprintf(out, "%8d %10.2f %10.1f %8.1f %10.2f %9dk\n", round, e.Reward, e.Attention, e.Clicks, e.Dismissals, len(moments)/1000)
 		if e.Reward > best {
 			best = e.Reward
 			if err := n.Save(path); err != nil {
-				return result{}, err
+				return 0, err
 			}
 		}
 	}
-	return finish("network", path, seed, judge, start, os.Stdout)
+	return best, nil
 }
 
 // finish rescores the kept brain on days it never practiced on, since
