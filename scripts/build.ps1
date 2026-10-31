@@ -1,5 +1,5 @@
 # Builds buddy.exe (with Buddy's icon, no console window) and buddysim.exe,
-# and packages them with the README into dist\buddy-<version>-windows-amd64.zip.
+# and packages them with the README and license into dist\buddy-<version>-windows-amd64.zip.
 #
 #   .\scripts\build.ps1               # version from git describe
 #   .\scripts\build.ps1 -Version 1.0.0
@@ -22,7 +22,7 @@ go build -trimpath -ldflags "-s -w -H=windowsgui" -o "$out\buddy.exe" ./cmd/budd
 if ($LASTEXITCODE -ne 0) { throw "building buddy failed" }
 go build -trimpath -ldflags "-s -w" -o "$out\buddysim.exe" ./cmd/buddysim
 if ($LASTEXITCODE -ne 0) { throw "building buddysim failed" }
-Copy-Item README.md $out
+Copy-Item README.md, LICENSE $out
 
 $zip = "dist\buddy-$Version-windows-amd64.zip"
 Compress-Archive -Path "$out\*" -DestinationPath $zip -Force
