@@ -43,3 +43,21 @@ func TestHybridLearnsThroughStudy(t *testing.T) {
 		t.Errorf("table wasn't saved: %v", err)
 	}
 }
+
+// A network trained by studying the table explores as little as the table,
+// not as much as a network that has never acted.
+func TestHybridExploresLikeItsTable(t *testing.T) {
+	t.Parallel()
+	table := NewAgent(1)
+	table.Steps = 1_000_000
+	h := NewHybrid(NewNet(1), table, "", 1)
+	if e := h.Epsilon(); e > epsilonMin+0.001 {
+		t.Fatalf("exploring %.3f of the time, want %.3f like the table", e, epsilonMin)
+	}
+	o := Observation{Hour: 15}
+	before := h.Net.Steps
+	h.Learn(o, Quiet, 0, o)
+	if h.Net.Steps != before+1 {
+		t.Errorf("steps went from %d to %d, want one more", before, h.Net.Steps)
+	}
+}

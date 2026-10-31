@@ -32,8 +32,11 @@ const (
 	studyPasses  = 2
 )
 
-// NewHybrid joins a network and the table it learned from.
+// NewHybrid joins a network and the table it learned from. The network
+// knows what the table has lived through, so it explores as little as the
+// table would.
 func NewHybrid(net *Net, table *Agent, tablePath string, seed uint64) *Hybrid {
+	net.Steps = max(net.Steps, table.Steps)
 	return &Hybrid{Net: net, Table: table, TablePath: tablePath, rng: rand.New(rand.NewPCG(seed, 31))}
 }
 
@@ -52,6 +55,7 @@ func (h *Hybrid) Scores(o Observation) [NumActions]float64 { return h.Net.Scores
 // kept for the network's next study.
 func (h *Hybrid) Learn(o Observation, a Action, r float64, next Observation) {
 	h.Table.Learn(o, a, r, next)
+	h.Net.Steps++ // counts toward exploring less, like the table's own steps
 	if len(h.moments) < studyMoments {
 		h.moments = append(h.moments, o)
 	} else {
