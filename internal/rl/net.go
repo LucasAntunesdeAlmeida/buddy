@@ -411,3 +411,15 @@ func (m *Memory) add(e Experience) {
 	m.Items[m.Next] = e
 	m.Next = (m.Next + 1) % replaySize
 }
+
+// Activations returns every layer's values for an observation: the inputs,
+// both hidden layers (after ReLU) and the action values. For explaining
+// decisions, not for training.
+func (n *Net) Activations(o Observation) [][]float64 {
+	x := Inputs(o)
+	return n.Online.forward(x[:])
+}
+
+// Margin is how much better than staying quiet an attempt must look before
+// the network makes it.
+func (n *Net) Margin() float64 { return actMargin }

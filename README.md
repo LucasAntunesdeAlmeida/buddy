@@ -143,7 +143,14 @@ Clicks on the empty space around Buddy go through to whatever is underneath, and
 
 ### What has Buddy learned?
 
-Pick **What has Buddy learned?** from the menu for a plain-text report (or run `go run ./cmd/buddy -report` to print it; the release `buddy.exe` has no console to print to). It shows what he would do right now in typical situations, how his attempts went, and whether he's getting better week by week. A shortened example:
+Pick **What has Buddy learned?** from the menu and a page opens in your browser (it's a local file and works offline). You get:
+
+- **Pick a moment.** Choose a situation (deep in code, relaxed browsing, late-night video, just sent away...) and see what Buddy notices, how much better or worse than staying quiet he expects each action to go, and a sentence explaining his choice.
+- **Inside his neural network.** A live diagram of the network for that moment: the inputs on the left, two layers of 32 neurons lit up by how active they are, one output per action, and the connections carrying the most signal, blue pushing up and red pushing down. Hover over anything for numbers.
+- **His playbook.** What he would do for every app and situation, morning, afternoon, evening and night.
+- **How it's going.** What happened after each kind of attempt, and how often you clicked him, week by week.
+
+For a plain-text version, run `go run ./cmd/buddy -report` (the release `buddy.exe` has no console to print to), or `buddy -report-html page.html` to save the page anywhere. A shortened example of the text version:
 
 ```text
 What Buddy would do now, on a calm afternoon
@@ -168,6 +175,7 @@ Mar 9          22       12         55%          1
 | `-voice` | off | Also read speech bubbles aloud with the Windows voice |
 | `-brain` | `auto` | `table`, `network`, or `auto` for whichever scored better in practice |
 | `-report` | | Print what Buddy has learned and exit (needs a console, so use `go run`) |
+| `-report-html` | | Write the visual "what has Buddy learned?" page to a file and exit |
 | `-data` | `%AppData%\buddy` | Where Buddy keeps what he learns |
 | `-v` | off | Log every decision |
 

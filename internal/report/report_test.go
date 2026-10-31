@@ -49,3 +49,29 @@ func TestWriteEmpty(t *testing.T) {
 		t.Errorf("an empty log should say so:\n%s", b.String())
 	}
 }
+
+func TestWriteHTML(t *testing.T) {
+	t.Parallel()
+	h := fakeHistory{
+		acts:  []store.ActionStats{{Action: "wave", Tries: 10, Clicked: 4, Dismissed: 1}},
+		weeks: []store.Week{{Start: time.Date(2030, 1, 7, 0, 0, 0, 0, time.UTC), Attempts: 10, Clicks: 4}},
+	}
+	for _, l := range []rl.Learner{rl.NewLocked(rl.NewNet(1)), rl.NewAgent(1)} {
+		var b strings.Builder
+		if err := WriteHTML(t.Context(), &b, l, h, time.Now()); err != nil {
+			t.Fatalf("%s: %v", l.Kind(), err)
+		}
+		out := b.String()
+		for _, want := range []string{"<!DOCTYPE html>", "data:image/png;base64,", `"brain":"` + l.Kind() + `"`, "Deep in code", "Buddy's playbook"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("%s report lacks %q", l.Kind(), want)
+			}
+		}
+		if strings.Contains(out, "http://") && !strings.Contains(out, `"http://www.w3.org/2000/svg"`) {
+			t.Errorf("%s report links to the web; it must work offline", l.Kind())
+		}
+		if l.Kind() == "network" && !strings.Contains(out, `"network":{"sizes":[14,32,32,7]`) {
+			t.Error("network report lacks the network's shape")
+		}
+	}
+}

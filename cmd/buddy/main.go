@@ -52,6 +52,7 @@ func run() (err error) {
 		choice  = flag.String("brain", "auto", "which brain to use: table, network, or auto for the one that scored better in buddysim")
 		verbose = flag.Bool("v", false, "log every decision")
 		show    = flag.Bool("report", false, "print what Buddy has learned and exit")
+		htmlOut = flag.String("report-html", "", "write the visual \"what has Buddy learned?\" page to this file and exit")
 	)
 	flag.Parse()
 	if err := os.MkdirAll(*dir, 0o755); err != nil {
@@ -85,6 +86,14 @@ func run() (err error) {
 
 	if *show {
 		return report.Write(ctx, os.Stdout, locked, log, time.Now())
+	}
+	if *htmlOut != "" {
+		f, err := os.Create(*htmlOut)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		return report.WriteHTML(ctx, f, locked, log, time.Now())
 	}
 
 	release, err := claimInstance()
@@ -137,13 +146,13 @@ func run() (err error) {
 		Settings:  prefs,
 		Autostart: autostart.New(),
 		Report: func() (string, error) {
-			path := filepath.Join(*dir, "what-buddy-learned.txt")
+			path := filepath.Join(*dir, "what-buddy-learned.html")
 			f, err := os.Create(path)
 			if err != nil {
 				return "", err
 			}
 			defer f.Close()
-			return path, report.Write(ctx, f, locked, log, time.Now())
+			return path, report.WriteHTML(ctx, f, locked, log, time.Now())
 		},
 		OnEnd: finish,
 	})

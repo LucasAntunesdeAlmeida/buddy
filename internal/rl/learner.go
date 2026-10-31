@@ -130,3 +130,11 @@ func (k *Locked) Save(path string) error {
 	defer k.mu.Unlock()
 	return k.l.Save(path)
 }
+
+// Peek runs f with the wrapped learner while holding the lock, for reading
+// internals, like the network's weights, that Learner doesn't expose.
+func (k *Locked) Peek(f func(Learner)) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	f(k.l)
+}

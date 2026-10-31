@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What Buddy has learned</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f4f3f0;
+    --surface-1: #fcfcfb;
+    --surface-2: #f0efec;
+    --line: #e2e0da;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #7a7974;
+    --mint: #2f9b86;
+    --pos: #2a78d6;      /* better than staying quiet */
+    --neg: #e34948;      /* worse than staying quiet */
+    --neuron: 42, 120, 214;
+    --quiet: #d9d7d0;
+    --a1: #2a78d6; --a2: #eb6834; --a3: #1baf7a; --a4: #eda100; --a5: #e87ba4; --a6: #008300;
+    --ignored: #cfcdc6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #121211;
+      --surface-1: #1a1a19;
+      --surface-2: #232321;
+      --line: #33332f;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #8f8e86;
+      --mint: #5ec8b8;
+      --pos: #3987e5;
+      --neg: #e66767;
+      --neuron: 57, 135, 229;
+      --quiet: #383835;
+      --a1: #3987e5; --a2: #d95926; --a3: #199e70; --a4: #c98500; --a5: #d55181; --a6: #008300;
+      --ignored: #44443f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--text-primary);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 20px 64px; }
+  header { display: flex; gap: 20px; align-items: center; margin-bottom: 28px; }
+  header img { width: 96px; height: 96px; }
+  h1 { font-size: 30px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; margin: 0 0 4px; }
+  h3 { font-size: 15px; margin: 18px 0 8px; color: var(--text-secondary); font-weight: 600; }
+  .sub { color: var(--text-secondary); margin: 2px 0 0; }
+  .muted { color: var(--text-muted); font-size: 13px; }
+  section.card {
+    background: var(--surface-1); border: 1px solid var(--line); border-radius: 14px;
+    padding: 22px 24px; margin-bottom: 20px;
+  }
+  .lead { color: var(--text-secondary); margin: 0 0 14px; max-width: 760px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 14px; }
+  .tile { background: var(--surface-2); border-radius: 10px; padding: 12px 14px; }
+  .tile .big { font-size: 26px; font-weight: 650; }
+  .tile .label { color: var(--text-secondary); font-size: 13px; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; counter-reset: s; }
+  .steps li { background: var(--surface-2); border-radius: 10px; padding: 12px 14px 12px 46px; position: relative; counter-increment: s; }
+  .steps li::before {
+    content: counter(s); position: absolute; left: 14px; top: 12px; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--mint); color: var(--surface-1); font-weight: 700; font-size: 13px; text-align: center; line-height: 22px;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 16px; }
+  .chip {
+    border: 1px solid var(--line); background: var(--surface-2); color: var(--text-primary);
+    border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 14px; cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+  .story { font-size: 16px; margin: 0 0 4px; }
+  .why { background: var(--surface-2); border-left: 4px solid var(--mint); padding: 10px 14px; border-radius: 6px; margin: 12px 0 4px; }
+  .cols { display: grid; grid-template-columns: 1fr 1.1fr; gap: 28px; }
+  @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  svg text { fill: var(--text-secondary); font-size: 12px; }
+  svg .strong { fill: var(--text-primary); font-weight: 650; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--text-secondary); margin: 8px 0 0; }
+  .legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+  .legend .line::before { height: 3px; vertical-align: 3px; }
+  table.playbook { border-collapse: separate; border-spacing: 3px; width: 100%; font-size: 13px; }
+  table.playbook th { color: var(--text-secondary); font-weight: 600; text-align: left; padding: 4px 6px; }
+  table.playbook td { border-radius: 6px; padding: 8px 8px; color: #0b0b0b; font-weight: 600; white-space: nowrap; }
+  table.playbook td.quiet { color: var(--text-secondary); font-weight: 500; }
+  table.playbook td small { font-weight: 500; opacity: 0.8; }
+  .tip {
+    position: fixed; pointer-events: none; z-index: 10; background: var(--text-primary); color: var(--surface-1);
+    padding: 6px 10px; border-radius: 6px; font-size: 13px; max-width: 280px; opacity: 0; transition: opacity 0.1s;
+  }
+  .empty { color: var(--text-muted); background: var(--surface-2); border-radius: 10px; padding: 18px; text-align: center; }
+  footer { color: var(--text-muted); font-size: 13px; text-align: center; margin-top: 28px; }
+  .hit { fill: transparent; cursor: default; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="{{.Portrait}}" alt="Buddy">
+    <div>
+      <h1>What Buddy has learned</h1>
+      <p class="sub">A look inside Buddy's head: what he notices, how he decides, and how it's going.</p>
+      <p class="muted">Made on this computer on {{.Generated}}. Nothing here ever leaves it.</p>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>How Buddy thinks</h2>
+    <p class="lead">Every 30 seconds Buddy looks at what you're doing and gives each thing he could do a score: how much reward he expects over the next few minutes. Then he does the best one, which is usually nothing.</p>
+    <ol class="steps">
+      <li><strong>He looks.</strong> Which kind of app you're in, how busy your keyboard and mouse are, how long you've been at it, the time, and how annoyed he thinks you are.</li>
+      <li><strong>He scores.</strong> His brain turns that into a score for each action. A click from you is worth +1, being sent away −2, and every attempt costs a little.</li>
+      <li><strong>He learns.</strong> After each try he nudges the scores toward what really happened, so next time he guesses better.</li>
+    </ol>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section class="card">
+    <h2>Pick a moment</h2>
+    <p class="lead">Choose a situation and see exactly what Buddy would do in it, and why.</p>
+    <div class="chips" id="chips" role="group" aria-label="Moments"></div>
+    <p class="story" id="story"></p>
+    <div class="why" id="why"></div>
+    <div class="cols">
+      <div>
+        <h3>What he sees</h3>
+        <svg id="inputs" viewBox="0 0 460 300" role="img" aria-label="What Buddy sees in this moment"></svg>
+      </div>
+      <div>
+        <h3>What he expects from each action, compared with staying quiet</h3>
+        <svg id="gains" viewBox="0 0 500 270" role="img" aria-label="Expected value of each action compared with staying quiet"></svg>
+        <div class="legend">
+          <span style="--c: var(--pos)">better than staying quiet</span>
+          <span style="--c: var(--neg)">worse than staying quiet</span>
+          <span class="line" id="marginKey" style="--c: var(--text-muted)">how much better it must look before he acts</span>
+        </div>
+      </div>
+    </div>
+    <div id="netBlock">
+      <h3>Inside his neural network</h3>
+      <p class="lead" id="netLead"></p>
+      <svg id="net" viewBox="0 0 1040 560" role="img" aria-label="Buddy's neural network for this moment"></svg>
+      <div class="legend">
+        <span style="--c: var(--pos)">signal pushing up</span>
+        <span style="--c: var(--neg)">signal pushing down</span>
+        <span style="--c: rgba(var(--neuron), 0.9)">active neuron (brighter = more active)</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Buddy's playbook</h2>
+    <p class="lead">What Buddy would do right now for every kind of app and situation, assuming you're in a good mood with him. The number is how much better than staying quiet he expects it to go.</p>
+    <div class="chips" id="times" role="group" aria-label="Time of day"></div>
+    <table class="playbook" id="playbook"></table>
+    <div class="legend" id="actionKey"></div>
+  </section>
+
+  <section class="card">
+    <h2>How it's going</h2>
+    <p class="lead">What really happened after Buddy tried something, over the last 30 days. Quiet moments aren't logged, only attempts.</p>
+    <h3>After each kind of attempt</h3>
+    <div id="outcomes"></div>
+    <h3>Is he getting better? How often you clicked him, week by week</h3>
+    <div id="weeks"></div>
+  </section>
+
+  <footer>Buddy uses his <strong>{{.Brain}}</strong> brain. To start over, quit Buddy and delete the buddy folder in %AppData%.</footer>
+</main>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+const D = {{.JSON}};
+const QUIET_SCORE = {{.QuietScore}}, SIM_SCORE = {{.SimScore}};
+const NS = "http://www.w3.org/2000/svg";
+const ACTION_COLOR = ["var(--quiet)", "var(--a1)", "var(--a2)", "var(--a3)", "var(--a4)", "var(--a5)", "var(--a6)"];
+const ACTION_NAME = { quiet: "stay quiet", fidget: "fidget", wave: "wave", bounce: "bounce", speak: "speak", chirp: "chirp", approach: "walk over" };
+const fmt = (v, d = 2) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(d);
+
+function el(name, attrs = {}, parent) {
+  const e = document.createElementNS(NS, name);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function text(parent, x, y, s, attrs = {}) {
+  const t = el("text", { x, y, ...attrs }, parent);
+  t.textContent = s;
+  return t;
+}
+const tip = document.getElementById("tip");
+function hover(target, html) {
+  target.addEventListener("mousemove", e => {
+    tip.innerHTML = html; tip.style.opacity = 1;
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - 300) + "px";
+    tip.style.top = (e.clientY + 14) + "px";
+  });
+  target.addEventListener("mouseleave", () => { tip.style.opacity = 0; });
+}
+
+// Tiles
+const tiles = document.getElementById("tiles");
+const tile = (big, label) => tiles.insertAdjacentHTML("beforeend", `<div class="tile"><div class="big">${big}</div><div class="label">${label}</div></div>`);
+tile(D.brain === "network" ? "Neural network" : "Q-table", D.brain === "network"
+  ? "his brain: 14 inputs, two layers of 32 neurons, one output per action"
+  : "his brain: a table of about 7,800 situations × 7 actions");
+if (SIM_SCORE) tile(SIM_SCORE.toFixed(1), `reward per practice day against the simulated person (a Buddy who never says hi scores ${QUIET_SCORE.toFixed(1)})`);
+tile(Math.round(D.epsilon * 100) + "%", "of his decisions are random experiments, to keep discovering what you like");
+
+// Moments
+const chips = document.getElementById("chips");
+D.moments.forEach((m, i) => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = m.name;
+  b.onclick = () => showMoment(i);
+  chips.appendChild(b);
+});
+
+function showMoment(i) {
+  [...chips.children].forEach((c, j) => c.setAttribute("aria-pressed", i === j));
+  const m = D.moments[i];
+  document.getElementById("story").textContent = m.story;
+  document.getElementById("why").textContent = m.why;
+  drawInputs(m);
+  drawGains(m);
+  if (D.network) drawNet(m);
+}
+
+function drawInputs(m) {
+  const svg = document.getElementById("inputs");
+  svg.replaceChildren();
+  // The six app inputs are one fact, which app; show it as one row.
+  const app = m.inputs.slice(0, 6).find(x => x.value > 0);
+  const rows = [{ name: "app", value: 1, text: app ? app.name.replace("app: ", "") : "other", whole: true },
+    ...m.inputs.slice(6, 9), { name: "time of day", value: 1, text: m.inputs[9].text, whole: true }, ...m.inputs.slice(11)];
+  const x0 = 120, w = 200, rh = 300 / rows.length;
+  rows.forEach((r, i) => {
+    const y = i * rh + rh / 2;
+    text(svg, x0 - 10, y + 4, r.name, { "text-anchor": "end" });
+    if (!r.whole) {
+      el("rect", { x: x0, y: y - 6, width: w, height: 12, rx: 4, fill: "var(--surface-2)" }, svg);
+      el("rect", { x: x0, y: y - 6, width: Math.max(2, r.value * w), height: 12, rx: 4, fill: "var(--mint)" }, svg);
+    }
+    text(svg, r.whole ? x0 : x0 + w + 10, y + 4, r.text, { class: "strong" });
+    const hit = el("rect", { x: 0, y: y - rh / 2, width: 460, height: rh, class: "hit" }, svg);
+    hover(hit, r.whole ? `Which app: <b>${r.text}</b>` : `${r.name}: <b>${r.text}</b><br>the network sees ${r.value.toFixed(2)} (0 to 1)`);
+  });
+}
+
+function drawGains(m) {
+  const svg = document.getElementById("gains");
+  svg.replaceChildren();
+  const rows = D.actions.map((a, i) => ({ a, i, g: m.gains[i] })).filter(r => r.a !== "quiet");
+  const lim = Math.max(0.15, D.margin * 1.4, ...rows.map(r => Math.abs(r.g)));
+  const x0 = 110, w = 290, mid = x0 + w / 2, sx = v => mid + (v / lim) * (w / 2);
+  const rh = 230 / rows.length;
+  el("line", { x1: mid, x2: mid, y1: 0, y2: 236, stroke: "var(--text-muted)", "stroke-width": 1 }, svg);
+  text(svg, mid, 256, "same as staying quiet", { "text-anchor": "middle", class: "muted" });
+  if (D.margin > 0) {
+    el("line", { x1: sx(D.margin), x2: sx(D.margin), y1: 0, y2: 236, stroke: "var(--text-muted)", "stroke-dasharray": "4 4" }, svg);
+  }
+  document.getElementById("marginKey").style.display = D.margin > 0 ? "" : "none";
+  rows.forEach((r, k) => {
+    const y = k * rh + rh / 2;
+    const chosen = r.i === m.best;
+    text(svg, x0 - 10, y + 4, ACTION_NAME[r.a], { "text-anchor": "end", class: chosen ? "strong" : "" });
+    const x = Math.min(sx(0), sx(r.g)), bw = Math.max(2, Math.abs(sx(r.g) - sx(0)));
+    el("rect", { x, y: y - 8, width: bw, height: 16, rx: 4, fill: r.g >= 0 ? "var(--pos)" : "var(--neg)" }, svg);
+    // Values sit in their own column, so they never run into the names.
+    text(svg, x0 + w + 14, y + 4, fmt(r.g) + (chosen ? "  ← his choice" : ""), { class: chosen ? "strong" : "" });
+    const hit = el("rect", { x: 0, y: y - rh / 2, width: 500, height: rh, class: "hit" }, svg);
+    hover(hit, `<b>${ACTION_NAME[r.a]}</b>: ${fmt(r.g)} compared with staying quiet` + (chosen ? "<br>This is what Buddy would do." : ""));
+  });
+}
+
+function drawNet(m) {
+  const svg = document.getElementById("net");
+  svg.replaceChildren();
+  const sizes = D.network.sizes, W = 1040, H = 540;
+  const xs = [150, 420, 690, 870];
+  const pos = sizes.map((n, l) => Array.from({ length: n }, (_, i) => ({ x: xs[l], y: 20 + (i + 0.5) * (H - 20) / n })));
+
+  // Lines: the strongest signals in this moment, per layer.
+  m.flows.forEach((fs, l) => {
+    const max = Math.max(...fs.map(f => Math.abs(f.v)), 1e-9);
+    fs.slice().reverse().forEach(f => {
+      const a = pos[l][f.from], b = pos[l + 1][f.to], k = Math.abs(f.v) / max;
+      const line = el("line", {
+        x1: a.x, y1: a.y, x2: b.x, y2: b.y, "stroke-linecap": "round",
+        stroke: f.v > 0 ? "var(--pos)" : "var(--neg)", "stroke-width": 0.8 + 3.2 * k, "stroke-opacity": 0.25 + 0.6 * k,
+      }, svg);
+      hover(line, `${l === 0 ? D.network.inputs[f.from] : "neuron " + (f.from + 1)} → ${l === 2 ? ACTION_NAME[D.actions[f.to]] : "neuron " + (f.to + 1)}<br>signal ${fmt(f.v, 3)}`);
+    });
+  });
+
+  // Neurons.
+  pos.forEach((col, l) => {
+    const vals = m.layers[l];
+    const max = Math.max(...vals.map(Math.abs), 1e-9);
+    col.forEach((p, i) => {
+      const v = vals[i];
+      let fill, r = l === 0 || l === 3 ? 7 : 5.5;
+      if (l === 3) fill = i === m.best ? ACTION_COLOR[i] : "var(--surface-2)";
+      else fill = v > 0 ? `rgba(var(--neuron), ${0.15 + 0.85 * Math.min(1, v / max)})` : "var(--surface-2)";
+      const c = el("circle", { cx: p.x, cy: p.y, r, fill, stroke: "var(--line)", "stroke-width": 1.2 }, svg);
+      const name = l === 0 ? D.network.inputs[i] : l === 3 ? ACTION_NAME[D.actions[i]] : `neuron ${i + 1} (layer ${l})`;
+      hover(c, `<b>${name}</b><br>${l === 0 ? "input" : l === 3 ? "expected value" : "activity"} ${v.toFixed(3)}` + (l > 0 && l < 3 && v <= 0 ? "<br>(switched off in this moment)" : ""));
+      if (l === 0) text(svg, p.x - 14, p.y + 4, D.network.inputs[i], { "text-anchor": "end" });
+      if (l === 3) {
+        const g = m.layers[3][i] - m.layers[3][0];
+        text(svg, p.x + 16, p.y + 4, ACTION_NAME[D.actions[i]] + (i === 0 ? "" : "  " + fmt(g)), { class: i === m.best ? "strong" : "" });
+      }
+    });
+  });
+  text(svg, xs[0], 12, "what he sees", { "text-anchor": "middle", class: "strong" });
+  text(svg, xs[1], 12, "32 neurons", { "text-anchor": "middle", class: "strong" });
+  text(svg, xs[2], 12, "32 neurons", { "text-anchor": "middle", class: "strong" });
+  text(svg, xs[3], 12, "what each action is worth", { "text-anchor": "start", class: "strong" });
+}
+
+if (D.network) {
+  document.getElementById("netLead").textContent =
+    "Signals flow left to right. The 14 things Buddy sees feed two layers of 32 artificial neurons, which feed one output per action. " +
+    "Each line is a connection whose strength Buddy learned. Only the connections carrying the most signal right now are drawn: " +
+    "blue ones push the next neuron up, red ones push it down. A neuron that ends up below zero switches off, which is how the network " +
+    "learns rules like \"never chirp during a game\". Hover over anything for numbers.";
+} else {
+  document.getElementById("netBlock").innerHTML =
+    "<h3>His brain is a table</h3><p class='lead'>Buddy is using his Q-table brain right now: he sorts each moment into one of about 7,800 situations " +
+    "and looks up the score of each action, learned from experience in that exact situation. Run him with -brain network to see the neural network here.</p>";
+}
+showMoment(0);
+
+// Playbook
+const times = document.getElementById("times");
+const pb = D.playbook;
+pb.times.forEach((t, i) => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = t;
+  b.onclick = () => showTime(i);
+  times.appendChild(b);
+});
+function showTime(ti) {
+  [...times.children].forEach((c, j) => c.setAttribute("aria-pressed", ti === j));
+  const t = document.getElementById("playbook");
+  t.innerHTML = "<tr><th></th>" + pb.situations.map(s => `<th>${s}</th>`).join("") + "</tr>";
+  pb.apps.forEach((app, ai) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<th>${app}</th>`;
+    pb.cells[ti][ai].forEach((c, si) => {
+      const td = document.createElement("td");
+      const name = ACTION_NAME[D.actions[c.action]];
+      td.style.background = ACTION_COLOR[c.action];
+      if (c.action === 0) td.className = "quiet";
+      td.innerHTML = name + (c.action && Math.abs(c.gain) >= 0.005 ? ` <small>${fmt(c.gain)}</small>` : "");
+      hover(td, `${app}, ${pb.situations[si]}, ${pb.times[ti].toLowerCase()}:<br><b>${name}</b>` + (c.action ? ` (${fmt(c.gain)} vs staying quiet)` : ""));
+      tr.appendChild(td);
+    });
+    t.appendChild(tr);
+  });
+}
+const hourNow = new Date().getHours();
+showTime(hourNow >= 5 && hourNow < 12 ? 0 : hourNow < 18 && hourNow >= 12 ? 1 : hourNow >= 18 ? 2 : 3);
+document.getElementById("actionKey").innerHTML = D.actions.map((a, i) => `<span style="--c:${ACTION_COLOR[i]}">${ACTION_NAME[a]}</span>`).join("");
+
+// Outcomes: one stacked bar per kind of attempt.
+(function () {
+  const box = document.getElementById("outcomes");
+  if (!D.outcomes || D.outcomes.length === 0) {
+    box.innerHTML = '<div class="empty">Nothing logged yet. Once Buddy has tried a few things, you\'ll see here how each went.</div>';
+    return;
+  }
+  const parts = [["clicked", "you clicked him", "var(--a1)"], ["played", "you played with him", "var(--a2)"],
+    ["dragged", "you moved him away", "var(--a3)"], ["dismissed", "you sent him away", "var(--a4)"], ["ignored", "no reaction", "var(--ignored)"]];
+  const rh = 34, x0 = 110, w = 560;
+  const svg = el("svg", { viewBox: `0 0 760 ${D.outcomes.length * rh + 10}`, role: "img", "aria-label": "Outcome of each kind of attempt" }, box);
+  const most = Math.max(...D.outcomes.map(o => o.tries), 1);
+  D.outcomes.forEach((o, k) => {
+    const y = k * rh + 6;
+    text(svg, x0 - 10, y + 16, ACTION_NAME[o.action] || o.action, { "text-anchor": "end" });
+    let x = x0;
+    parts.forEach(([key, label, color]) => {
+      const n = o[key];
+      if (!n) return;
+      const bw = (n / most) * w;
+      const seg = el("rect", { x: x + 1, y, width: Math.max(1, bw - 2), height: 22, rx: 4, fill: color }, svg);
+      if (bw > 26) text(svg, x + bw / 2, y + 15, n, { "text-anchor": "middle", class: "strong" });
+      hover(seg, `<b>${ACTION_NAME[o.action] || o.action}</b>: ${label} ${n} of ${o.tries} times`);
+      x += bw;
+    });
+    text(svg, x + 8, y + 16, `${o.tries} tries`);
+  });
+  const key = document.createElement("div");
+  key.className = "legend";
+  key.innerHTML = parts.map(([, label, c]) => `<span style="--c:${c}">${label}</span>`).join("");
+  box.appendChild(key);
+})();
+
+// Weeks: click rate over time.
+(function () {
+  const box = document.getElementById("weeks");
+  const ws = D.weeks || [];
+  if (ws.length < 2) {
+    box.innerHTML = '<div class="empty">' + (ws.length === 1
+      ? `So far: ${ws[0].attempts} attempts, ${ws[0].clicks} clicked (${Math.round(ws[0].rate * 100)}%). A trend appears after the second week.`
+      : "No weeks logged yet. Come back after Buddy has been around for a while.") + "</div>";
+    return;
+  }
+  const W = 760, H = 220, x0 = 50, y0 = 16, pw = W - x0 - 20, ph = H - y0 - 36;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Click rate per week" }, box);
+  const sx = i => x0 + (ws.length === 1 ? pw / 2 : (i / (ws.length - 1)) * pw);
+  const sy = v => y0 + ph - v * ph;
+  [0, 0.25, 0.5, 0.75, 1].forEach(v => {
+    el("line", { x1: x0, x2: x0 + pw, y1: sy(v), y2: sy(v), stroke: "var(--line)" }, svg);
+    text(svg, x0 - 8, sy(v) + 4, Math.round(v * 100) + "%", { "text-anchor": "end" });
+  });
+  el("polyline", { points: ws.map((w, i) => `${sx(i)},${sy(w.rate)}`).join(" "), fill: "none", stroke: "var(--a1)", "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+  ws.forEach((w, i) => {
+    text(svg, sx(i), H - 8, w.start, { "text-anchor": "middle" });
+    el("circle", { cx: sx(i), cy: sy(w.rate), r: 4.5, fill: "var(--a1)", stroke: "var(--surface-1)", "stroke-width": 2 }, svg);
+    const hit = el("rect", { x: sx(i) - pw / ws.length / 2, y: y0, width: pw / ws.length, height: ph, class: "hit" }, svg);
+    hover(hit, `<b>Week of ${w.start}</b><br>${w.attempts} attempts, ${w.clicks} clicked (${Math.round(w.rate * 100)}%)<br>sent away ${w.sentAway} times`);
+  });
+  const last = ws[ws.length - 1];
+  text(svg, sx(ws.length - 1) - 8, sy(last.rate) - 10, Math.round(last.rate * 100) + "%", { "text-anchor": "end", class: "strong" });
+})();
+</script>
+</body>
+</html>
