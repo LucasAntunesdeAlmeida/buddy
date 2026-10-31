@@ -16,10 +16,12 @@ const (
 	Speak                  // show a speech bubble
 	Chirp                  // play a short sound
 	Approach               // walk toward the cursor
+	Peek                   // sink out of sight and pop back up
+	Emote                  // show a little bubble with a heart, sparkle, ! or ?
 	NumActions
 )
 
-var actionNames = [NumActions]string{"quiet", "fidget", "wave", "bounce", "speak", "chirp", "approach"}
+var actionNames = [NumActions]string{"quiet", "fidget", "wave", "bounce", "speak", "chirp", "approach", "peek", "emote"}
 
 func (a Action) String() string {
 	if a >= NumActions {

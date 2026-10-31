@@ -59,11 +59,18 @@ func obs(c activity.Category, act float64, idle, inApp time.Duration, hour int, 
 	}
 }
 
-// Names of the network's 14 inputs, in order.
+// Names of the network's inputs, in order: the smooth numbers first, then
+// the table's buckets.
 var inputNames = []string{
 	"app: other", "app: code", "app: browser", "app: game", "app: media", "app: chat",
 	"idle time", "input level", "time in app", "time of day (a)", "time of day (b)",
 	"annoyance", "since last try", "focused",
+	"idle: active", "idle: paused", "idle: idle", "idle: away",
+	"input: low", "input: mid", "input: high",
+	"in app: <10m", "in app: <1h", "in app: 1h+",
+	"time: night", "time: morning", "time: afternoon", "time: evening",
+	"mood: calm", "mood: irritated", "mood: fed up",
+	"last try: <2m", "last try: <15m", "last try: 15m+",
 }
 
 type pageData struct {
@@ -160,6 +167,9 @@ func WriteHTML(ctx context.Context, w io.Writer, l rl.Learner, h History, now ti
 	}
 	inspect(func(inner rl.Learner) {
 		net, _ := inner.(*rl.Net)
+		if h, ok := inner.(*rl.Hybrid); ok {
+			net = h.Net
+		}
 		if net != nil {
 			v.Margin = net.Margin()
 			v.Network = &networkV{Inputs: inputNames}
@@ -320,6 +330,10 @@ func verb(a rl.Action) string {
 		return "chirp"
 	case rl.Approach:
 		return "walk over to you"
+	case rl.Peek:
+		return "peek out at you"
+	case rl.Emote:
+		return "show a little bubble"
 	}
 	return "stay quiet"
 }
@@ -343,8 +357,13 @@ func inputText(i int, o rl.Observation) string {
 		return []string{"calm", "a bit irritated", "fed up"}[min(int(o.Annoyance+0.5), 2)]
 	case i == 12:
 		return roughly(o.SinceAction)
-	default:
+	case i == 13:
 		if o.Focused() {
+			return "yes"
+		}
+		return "no"
+	default: // a bucket
+		if rl.Inputs(o)[i] > 0 {
 			return "yes"
 		}
 		return "no"

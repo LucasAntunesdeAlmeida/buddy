@@ -2,6 +2,7 @@ package report
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -70,7 +71,8 @@ func TestWriteHTML(t *testing.T) {
 		if strings.Contains(out, "http://") && !strings.Contains(out, `"http://www.w3.org/2000/svg"`) {
 			t.Errorf("%s report links to the web; it must work offline", l.Kind())
 		}
-		if l.Kind() == "network" && !strings.Contains(out, `"network":{"sizes":[14,32,32,7]`) {
+		shape := fmt.Sprintf(`"network":{"sizes":[%d,%d,%d,%d]`, rl.NumInputs, rl.DefaultHidden, rl.DefaultHidden, rl.NumActions)
+		if l.Kind() == "network" && !strings.Contains(out, shape) {
 			t.Error("network report lacks the network's shape")
 		}
 	}

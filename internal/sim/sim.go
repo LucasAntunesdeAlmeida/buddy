@@ -121,10 +121,11 @@ func (u *User) Advance(d time.Duration) {
 
 // How noticeable each action is, and how irritating it is when unwanted.
 var (
-	noticeable = [rl.NumActions]float64{rl.Quiet: 0, rl.Fidget: 0.05, rl.Wave: 0.35, rl.Bounce: 0.45, rl.Speak: 0.55, rl.Chirp: 0.7, rl.Approach: 0.55}
+	noticeable = [rl.NumActions]float64{rl.Quiet: 0, rl.Fidget: 0.05, rl.Wave: 0.35, rl.Bounce: 0.45, rl.Speak: 0.55, rl.Chirp: 0.7, rl.Approach: 0.55, rl.Peek: 0.4, rl.Emote: 0.35}
+	// Peeking and emoting are silent and playful, so they bother people least.
 	// Walking over is about as welcome as a wave: a character coming to say hi
 	// is charming, not intrusive, as long as it picks its moment.
-	irritating = [rl.NumActions]float64{rl.Quiet: 0, rl.Fidget: 0.2, rl.Wave: 0.6, rl.Bounce: 0.8, rl.Speak: 0.7, rl.Chirp: 1.5, rl.Approach: 0.6}
+	irritating = [rl.NumActions]float64{rl.Quiet: 0, rl.Fidget: 0.2, rl.Wave: 0.6, rl.Bounce: 0.8, rl.Speak: 0.7, rl.Chirp: 1.5, rl.Approach: 0.6, rl.Peek: 0.35, rl.Emote: 0.3}
 	// How welcome Buddy is in each kind of app.
 	openness = [activity.NumCategories]float64{
 		activity.Other: 0.55, activity.Code: 0.3, activity.Browser: 0.6,
@@ -229,9 +230,40 @@ func Evaluate(l rl.Learner, seed uint64, days int) Score {
 	return Score{s.Reward / n, s.Attention / n, s.Clicks / n, s.Dismissals / n, s.ByAction}
 }
 
-// RunDay simulates one 24-hour day. If learn is true the agent is updated
-// after every step.
+// RunDay simulates one 24-hour day. If learn is true the agent explores and
+// is updated after every step; otherwise it always does its best.
 func RunDay(u *User, agent rl.Learner, learn bool) DayStats {
+	if learn {
+		return runDay(u, agent, true, true, nil)
+	}
+	return runDay(u, agent, false, false, nil)
+}
+
+// Moments returns real moments Buddy meets while the agent runs him for
+// days, keeping a random keep of them. The agent explores as it would in
+// practice, so the moments include what follows its occasional experiments,
+// but it doesn't learn.
+func Moments(agent rl.Learner, seed uint64, days, keep int) []rl.Observation {
+	u := NewUser(seed)
+	rng := rand.New(rand.NewPCG(seed, 99))
+	var out []rl.Observation
+	seen := 0
+	record := func(o rl.Observation) {
+		// Reservoir sampling: every moment has the same chance to be kept.
+		seen++
+		if len(out) < keep {
+			out = append(out, o)
+		} else if i := rng.IntN(seen); i < keep {
+			out[i] = o
+		}
+	}
+	for range days {
+		runDay(u, agent, true, false, record)
+	}
+	return out
+}
+
+func runDay(u *User, agent rl.Learner, explore, learn bool, record func(rl.Observation)) DayStats {
 	var (
 		stats      DayStats
 		mood       rl.Annoyance // the user's real mood
@@ -256,8 +288,11 @@ func RunDay(u *User, agent rl.Learner, learn bool) DayStats {
 			u.Advance(Tick)
 			continue
 		}
+		if record != nil {
+			record(o)
+		}
 		var act rl.Action
-		if learn {
+		if explore {
 			act, _ = agent.Act(o)
 		} else {
 			act = agent.Best(o)

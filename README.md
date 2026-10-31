@@ -16,7 +16,7 @@ And he does it **100% on your computer**. Buddy makes no network connections, re
 
 ### Things he decides to do
 
-These are the seven actions Buddy chooses between. Which one, and when, is what he learns.
+These are the nine actions Buddy chooses between. Which one, and when, is what he learns.
 
 | | Action | What it looks like |
 |---|---|---|
@@ -27,6 +27,8 @@ These are the seven actions Buddy chooses between. Which one, and when, is what 
 | ![chirp](docs/media/chirp.gif) | **Chirp** | A quick hop, a little "o", a short chirp sound and two floating notes. |
 | ![speak](docs/media/speak.gif) | **Speak** | A speech bubble pops up and types out a line that fits the moment. |
 | ![approach](docs/media/approach.gif) | **Walk to you** | Hop-walks across the screen toward your mouse cursor. |
+| ![peek](docs/media/peek.gif) | **Peek** | Sinks out of sight, peeks left and right with just his sprout showing, then pops back up. Peekaboo. |
+| ![emote](docs/media/emote.gif) | **Emote** | A little bubble over his head: a heart, a sparkle, a "!", a "?" or a music note. A hello without words. |
 
 ### Things he does on his own
 
@@ -88,16 +90,29 @@ On top of that, every attempt costs a little, and interrupting while you're typi
 
 Buddy doesn't just learn "what works right now". His guess at your annoyance is part of what he sees, so pestering you now leads to worse situations later. With a discount factor of 0.9, he plans a few minutes ahead and learns that spamming never pays, even when a single extra wave might get a click.
 
-### His two brains
+### His brain: a neural network with a diary
 
-Buddy comes with two interchangeable learners and uses whichever proved better:
+Buddy decides with a **neural network**, and keeps a **table** as his diary.
 
-- **The Q-table.** A lookup table of about 7,800 situations × 7 actions. Every situation is learned on its own. It's simple, transparent and stable.
-- **The neural network.** A small **Double DQN** written from scratch in Go: 14 inputs, two hidden layers of 32 neurons, one output per action. It learns from a replay memory of past moments, against a slowly updated copy of itself, with the Adam optimizer. Its big advantage is that it **generalizes**: learning that you enjoy a hello while browsing in the afternoon tells it something about browsing in the evening too. Two details keep it well behaved. It replays its attempts and its quiet moments from separate memories, so rare attempts aren't drowned out. And it only acts when an attempt looks *clearly* better than staying quiet, which stops it from getting pushy.
+- **The neural network** is a **dueling deep Q-network**, written from scratch in Go: 34 inputs, two hidden layers of 128 neurons, and one output for how good the moment is plus one for how much better or worse each attempt would be than staying quiet. It sees each moment two ways at once: as smooth numbers (9 minutes and 11 minutes are almost the same) and as the table's buckets ("under 10 minutes in this app"). That lets it learn sharp rules and still carry lessons over to similar moments: learning that you enjoy a hello while browsing in the afternoon tells it something about the evening too. It only acts when an attempt looks *clearly* better than staying quiet, so small errors don't make it pushy.
+- **The table** is a lookup of about 7,800 situations × 9 actions. Every reaction you give is tallied there, and it keeps exact running averages, which a network learning one noisy reaction at a time can't.
+- **Every couple of hours the network studies the diary**: it relearns the table's scores on the real moments Buddy met with you. So it learns from you as reliably as the table does, while staying a network that generalizes.
+
+Learning straight into the network, one reaction at a time, was tried first. It drifted and got worse with practice, which is why Buddy learns through his diary.
 
 ### Practice before meeting you
 
-A brand-new Buddy would be clueless, and random experiments on a real person are annoying. So `buddysim` lets him practice first against a **simulated person**: a toy model of someone who codes, browses, games, watches videos, takes breaks and goes to bed. It's built on common sense (don't interrupt games, people like a hello after a break), not on data about anyone. Thousands of simulated days take under a minute, and both brains are trained and scored. Then your real reactions take over, and Buddy keeps adapting as your habits change.
+A brand-new Buddy would be clueless, and random experiments on a real person are annoying. So `buddysim` lets him practice first against a **simulated person**: a toy model of someone who codes, browses, games, watches videos, takes breaks and goes to bed. It's built on common sense (don't interrupt games, people like a hello after a break, and people stop noticing something that moves all the time), not on data about anyone.
+
+Practice takes about two minutes and has three steps:
+
+1. **The table practices** for 2,000 simulated days by trial and error.
+2. **The network copies the table** on moments the table meets (*distillation*).
+3. **The network drives** for a few rounds while the table labels the moments it gets into, and it relearns from those (*DAgger*). A plain copy goes wrong: its small mistakes lead to moments the table rarely saw, where the copy is worse, which leads to more mistakes. Learning from its own trips teaches it to recover.
+
+Each step keeps its best checkpoint, scored again on days it never practiced on. Then your real reactions take over.
+
+That bit of common sense about attention matters. Without it, the brains found a loophole: fidgeting every 30 seconds earned more clicks from the simulated person than any real hello, because it cost nothing and never wore off. Reinforcement learning finds loopholes like this whenever the reward allows them, so the practice partner has to be realistic.
 
 He still experiments a little (2% of his decisions are random tries) so he can discover things the simulation got wrong. While you're typing hard, he only experiments with calm actions.
 
@@ -110,13 +125,13 @@ You need Windows 10 or 11. To build from source you also need [Go](https://go.de
 ### From a release
 
 1. Unzip `buddy-<version>-windows-amd64.zip` anywhere you like.
-2. Run `buddysim.exe` once. Buddy practices for about a minute.
+2. Run `buddysim.exe` once. Buddy practices for about two minutes.
 3. Run `buddy.exe`. Buddy appears at the bottom right of your screen and in the notification area.
 
 ### From source
 
 ```sh
-go run ./cmd/buddysim      # practice first, takes about a minute
+go run ./cmd/buddysim      # practice first, takes about two minutes
 go run ./cmd/buddy         # meet Buddy
 ```
 
@@ -146,7 +161,7 @@ Clicks on the empty space around Buddy go through to whatever is underneath, and
 Pick **What has Buddy learned?** from the menu and a page opens in your browser (it's a local file and works offline). You get:
 
 - **Pick a moment.** Choose a situation (deep in code, relaxed browsing, late-night video, just sent away...) and see what Buddy notices, how much better or worse than staying quiet he expects each action to go, and a sentence explaining his choice.
-- **Inside his neural network.** A live diagram of the network for that moment: the inputs on the left, two layers of 32 neurons lit up by how active they are, one output per action, and the connections carrying the most signal, blue pushing up and red pushing down. Hover over anything for numbers.
+- **Inside his neural network.** A live diagram of the network for that moment: the inputs on the left, two layers of 128 neurons lit up by how active they are, one output per action, and the connections carrying the most signal, blue pushing up and red pushing down. Hover over anything for numbers.
 - **His playbook.** What he would do for every app and situation, morning, afternoon, evening and night.
 - **How it's going.** What happened after each kind of attempt, and how often you clicked him, week by week.
 
@@ -173,13 +188,13 @@ Mar 9          22       12         55%          1
 | Flag | Default | Meaning |
 |---|---|---|
 | `-voice` | off | Also read speech bubbles aloud with the Windows voice |
-| `-brain` | `auto` | `table`, `network`, or `auto` for whichever scored better in practice |
+| `-brain` | `network` | `network` (decides, with the table as its diary) or `table` (the table decides alone) |
 | `-report` | | Print what Buddy has learned and exit (needs a console, so use `go run`) |
 | `-report-html` | | Write the visual "what has Buddy learned?" page to a file and exit |
 | `-data` | `%AppData%\buddy` | Where Buddy keeps what he learns |
 | `-v` | off | Log every decision |
 
-`buddysim` takes `-brain table|network|both`, `-days` and `-net-days` (how long each brain practices), and `-force` to replace brains that already exist. Replacing them makes Buddy forget what he learned from you.
+`buddysim` takes `-days` (how long the table practices), `-rounds` (how many rounds the network drives), `-net-hidden` (neurons per layer), and `-force` to replace brains that already exist. Replacing them makes Buddy forget what he learned from you.
 
 ---
 
@@ -189,7 +204,7 @@ Everything Buddy knows lives in one folder, `%AppData%\buddy`. Delete it and he 
 
 | File | What's in it |
 |---|---|
-| `qtable.json`, `network.gob` | His two brains: numbers, no text about you |
+| `network.gob`, `qtable.json` | His neural network and his diary table: numbers, no text about you |
 | `buddy.db` | A log of his attempts and your reactions, with only the coarse situation (like `code/active/input-high/app-1h+/evening/calm/last-15m+`) |
 | `said.json` | The lines he said recently |
 | `settings.json` | Your tray menu choices |
@@ -210,8 +225,8 @@ Buddy is drawn on the CPU into a 240×200 bitmap and shown in a transparent "lay
 **Why doesn't Buddy do much?**
 Staying quiet is usually right, and he knows it. Most of his "personality" is deciding *not* to interrupt you. If you'd like more from him, reward him: click him when he says hi.
 
-**Why doesn't he walk toward me more often?**
-During practice, the simulated person found a character walking toward their mouse fairly intrusive, so Buddy starts out cautious about it. If you click him when he does, he'll learn that *you* like it.
+**Why does he walk over sometimes and not other times?**
+Walking over is one of nine ways he can say hi, and he picks the one he expects to go best right now. In practice he learned to mix them: emotes and bounces most, then walks, speech and peeks. Click him when he walks over and he'll learn that *you* like it.
 
 **He sneezed out a chirp during a meeting!**
 He shouldn't: he goes still whenever an app is using your microphone or camera. If your meeting app doesn't register microphone use with Windows (for example, you're muted at the system level), the rule can't see it. Use *Pause for 1 hour* from the tray.
@@ -228,7 +243,7 @@ cmd/buddy          the app: wiring, logging, single instance
 cmd/buddysim       practice against the simulated person
 internal/activity  app categories and activity snapshots
 internal/sense     Windows watcher: foreground app, input timing, calls, full screen
-internal/rl        the brains: Q-table, Double DQN, rewards, annoyance
+internal/rl        the brain: dueling deep Q-network, diary table, distillation, rewards
 internal/brain     the look, decide, act, watch, learn loop
 internal/sim       the simulated person
 internal/store     SQLite log of attempts and reactions

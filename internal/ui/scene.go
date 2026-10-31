@@ -82,6 +82,7 @@ type Scene struct {
 	dragV    float64 // sideways speed, scene units per second
 	swing    float64 // smoothed sideways swing
 	lastDraw time.Time
+	emote    emote // which bubble the current Emote shows
 }
 
 // Effect is what the window must do for a command besides drawing.
@@ -131,6 +132,10 @@ func duration(a rl.Action, phrase []rune) time.Duration {
 		return 1600 * time.Millisecond
 	case rl.Approach:
 		return 3 * time.Second
+	case rl.Peek:
+		return peekFor
+	case rl.Emote:
+		return emoteFor
 	case rl.Speak:
 		return popIn + time.Duration(len(phrase))*time.Second/typeRate + readTime
 	}
@@ -155,6 +160,8 @@ func (s *Scene) Apply(c brain.Command, now time.Time) Effect {
 		return Effect{Sound: true}
 	case rl.Approach:
 		return Effect{Walk: true}
+	case rl.Emote:
+		s.emote = emote(now.UnixMilli() % int64(numEmotes))
 	}
 	return Effect{}
 }
@@ -381,6 +388,10 @@ func (s *Scene) pose(now time.Time) look {
 		swing := 0.3 * math.Sin(t/0.32*math.Pi)
 		l.armL, l.armR = 0.35+swing, 0.35-swing
 		l.sprout -= 0.2 * s.facing
+	case rl.Peek:
+		peek(&l, t)
+	case rl.Emote:
+		s.emoteFace(&l, t)
 	}
 
 	if s.waking(now) {
@@ -548,9 +559,12 @@ func (s *Scene) Render(now time.Time) *image.RGBA {
 	top := base - h
 
 	// Ground shadow, smaller and fainter the higher Buddy jumps.
-	up := min(l.lift/30, 1)
+	up := min(max(l.lift, 0)/30, 1)
 	sh := shadow
 	sh.A = uint8(float64(shadow.A) * (1 - 0.5*up))
+	if l.lift < 0 { // peeking: the shadow fades as Buddy sinks out of sight
+		sh.A = uint8(float64(sh.A) * max(0, 1+l.lift/25))
+	}
 	s.ellipse(cx, ground+2, 30*l.sx*(1-0.4*up), 4.5, 0, sh)
 
 	s.drawBuddy(l, cx, rx, h, base)
@@ -672,6 +686,9 @@ func (s *Scene) drawFace(l look, fx, ey float64) {
 // drawEffects draws music notes, the heart after a click, and sleeping Zs.
 // They fade by shrinking, so overlapping strokes never show through.
 func (s *Scene) drawEffects(now time.Time, cx, rx, top float64) {
+	if s.anim == rl.Emote {
+		s.drawEmote(now, cx, rx, top)
+	}
 	if s.anim == rl.Chirp {
 		t := now.Sub(s.started).Seconds()
 		for i, delay := range []float64{0, 0.3} {

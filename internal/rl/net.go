@@ -11,12 +11,16 @@ import (
 	"path/filepath"
 )
 
-// NumInputs is the size of the network's input.
-const NumInputs = 14
+// NumInputs is the size of the network's input: 14 smooth numbers plus the
+// table's 20 buckets.
+const NumInputs = 14 + idleBuckets + activityBuckets + inAppBuckets + hourBuckets + annoyBuckets + sinceBuckets
 
-// Inputs turns an observation into numbers between about 0 and 1. Unlike
-// the table's buckets they keep detail, so the network can tell 9 minutes
-// from 11 and learn that they are much alike.
+// Inputs turns an observation into numbers between 0 and 1, in two views.
+// The smooth numbers keep detail, so the network can tell 9 minutes from 11
+// and learn that they are much alike. The table's buckets, one input each,
+// let it learn sharp rules as easily as the table does, like "after an hour
+// in the same app things change". With both, it can do anything the table
+// can and also carry lessons over between similar moments.
 func Inputs(o Observation) [NumInputs]float64 {
 	var f [NumInputs]float64
 	c := o.Category
@@ -34,6 +38,15 @@ func Inputs(o Observation) [NumInputs]float64 {
 	if o.Focused() {
 		f[13] = 1
 	}
+	b := o.Features()
+	i := 14
+	for _, v := range []struct{ bucket, n int }{
+		{b.Idle, idleBuckets}, {b.Activity, activityBuckets}, {b.InApp, inAppBuckets},
+		{b.Hour, hourBuckets}, {b.Annoyance, annoyBuckets}, {b.Since, sinceBuckets},
+	} {
+		f[i+v.bucket] = 1
+		i += v.n
+	}
 	return f
 }
 
@@ -45,7 +58,7 @@ func logScale(v, top float64) float64 {
 
 // Network shape and training settings.
 const (
-	DefaultHidden = 32    // neurons in each hidden layer
+	DefaultHidden = 128   // neurons in each hidden layer
 	replaySize    = 10000 // experiences kept in each memory
 	batchSize     = 32
 	minReplay     = 200  // don't train on fewer experiences than this
@@ -144,7 +157,7 @@ type Net struct {
 	rng        *rand.Rand
 	trainEvery int
 	batches    int
-	explore    float64 // floor on exploration, raised while practicing
+	margin     float64 // see SetMargin
 	grads      []Layer // reused gradient buffers
 }
 
@@ -155,7 +168,7 @@ func NewNet(seed uint64) *Net { return NewNetSized(seed, DefaultHidden) }
 // its two hidden layers. Bigger can tell finer differences apart, but
 // learns slower and costs more to run.
 func NewNetSized(seed uint64, hidden int) *Net {
-	n := &Net{rng: rand.New(rand.NewPCG(seed, seed^0x2545f4914f6cdd1d)), trainEvery: 1, batches: 1}
+	n := &Net{rng: rand.New(rand.NewPCG(seed, seed^0x2545f4914f6cdd1d)), trainEvery: 1, batches: 1, margin: actMargin}
 	n.Online = MLP{Layers: []Layer{
 		newLayer(NumInputs, hidden, n.rng, 1),
 		newLayer(hidden, hidden, n.rng, 1),
@@ -173,22 +186,42 @@ func NewNetSized(seed uint64, hidden int) *Net {
 	return n
 }
 
-// SetTraining sets how often the network trains: batches minibatches every
-// every steps. Pre-training uses fewer updates per step to finish quickly;
-// real use trains on every step, since steps are rare.
-func (n *Net) SetTraining(every, batches int) {
-	n.trainEvery, n.batches = max(every, 1), max(batches, 1)
+var _ Learner = (*Net)(nil)
+
+// The network is a dueling network: its first output is how good the
+// moment is if Buddy stays quiet, and every other output is how much better
+// or worse than that one action would be. Buddy's choices hang on those
+// small differences, so the network learns them directly instead of as the
+// gap between two large numbers, where small errors would flip decisions.
+
+// values turns the network's raw outputs into the value of each action.
+func values(out []float64) [NumActions]float64 {
+	var q [NumActions]float64
+	q[Quiet] = out[Quiet]
+	for a := Quiet + 1; a < NumActions; a++ {
+		q[a] = out[Quiet] + out[a]
+	}
+	return q
 }
 
-var _ Learner = (*Net)(nil)
+// rawDelta turns a loss slope on each action's value into slopes on the raw
+// outputs: the quiet output feeds every action, and each other output only
+// its own.
+func rawDelta(dq [NumActions]float64) []float64 {
+	d := make([]float64, NumActions)
+	for a := range NumActions {
+		d[Quiet] += dq[a]
+		if a != Quiet {
+			d[a] += dq[a]
+		}
+	}
+	return d
+}
 
 // Scores implements Learner.
 func (n *Net) Scores(o Observation) [NumActions]float64 {
 	f := Inputs(o)
-	q := n.Online.predict(f[:])
-	var s [NumActions]float64
-	copy(s[:], q)
-	return s
+	return values(n.Online.predict(f[:]))
 }
 
 // actMargin is how much better than staying quiet an attempt must look
@@ -204,7 +237,7 @@ func (n *Net) Best(o Observation) Action {
 	for a := Quiet + 1; a < NumActions; a++ {
 		bar := q[best]
 		if a.Attention() && !best.Attention() {
-			bar += actMargin
+			bar += n.margin
 		}
 		if q[a] > bar {
 			best = a
@@ -225,13 +258,7 @@ func (n *Net) Act(o Observation) (Action, bool) {
 }
 
 // Epsilon implements Learner.
-func (n *Net) Epsilon() float64 { return max(n.explore, epsilon(n.Steps)) }
-
-// SetExploration keeps random tries at a rate of at least floor. Practice
-// uses a high floor so the network keeps trying every action instead of
-// settling on the first that works; with a real person it's left at zero,
-// since random tries annoy people.
-func (n *Net) SetExploration(floor float64) { n.explore = floor }
+func (n *Net) Epsilon() float64 { return epsilon(n.Steps) }
 
 // SimScore implements Learner.
 func (n *Net) SimScore() float64 { return n.Sim }
@@ -242,8 +269,9 @@ func (n *Net) SetSimScore(v float64) { n.Sim = v }
 // Kind implements Learner.
 func (n *Net) Kind() string { return "network" }
 
-// Learn implements Learner: it remembers the step and trains on a random
-// batch of remembered steps.
+// Learn implements Learner with plain deep Q-learning: it remembers the step
+// and trains on a random batch of remembered steps. Buddy itself learns
+// through Hybrid instead, which is steadier; this is kept for experiments.
 func (n *Net) Learn(o Observation, a Action, r float64, next Observation) {
 	x, nx := Inputs(o), Inputs(next)
 	e := Experience{Action: a, Reward: float32(r)}
@@ -266,15 +294,8 @@ func (n *Net) Learn(o Observation, a Action, r float64, next Observation) {
 
 // train does one Adam step on a random minibatch with Huber loss.
 func (n *Net) train() {
-	if n.grads == nil {
-		for _, l := range n.Online.Layers {
-			n.grads = append(n.grads, Layer{W: make([]float64, len(l.W)), B: make([]float64, len(l.B))})
-		}
-	}
-	for i := range n.grads {
-		clear(n.grads[i].W)
-		clear(n.grads[i].B)
-	}
+	n.ensureGrads()
+	n.clearGrads()
 
 	var x, nx [NumInputs]float64
 	for i := range batchSize {
@@ -288,20 +309,22 @@ func (n *Net) train() {
 		}
 		// Double DQN: the online network picks the next action, the target
 		// network says what it's worth.
-		nextQ := n.Online.predict(nx[:])
+		nextQ := values(n.Online.predict(nx[:]))
 		best := 0
 		for a := range nextQ {
 			if nextQ[a] > nextQ[best] {
 				best = a
 			}
 		}
-		target := float64(e.Reward) + gamma*n.Target.predict(nx[:])[best]
+		target := float64(e.Reward) + gamma*values(n.Target.predict(nx[:]))[best]
 
 		acts := n.Online.forward(x[:])
-		q := acts[len(acts)-1][e.Action]
+		q := values(acts[len(acts)-1])[e.Action]
 		diff := q - target
 		grad := min(max(diff, -huberDelta), huberDelta) / batchSize // Huber loss slope
-		n.backward(acts, int(e.Action), grad)
+		var dq [NumActions]float64
+		dq[e.Action] = grad
+		n.backwardAll(acts, rawDelta(dq))
 	}
 	n.adam()
 	n.Updates++
@@ -313,9 +336,14 @@ func (n *Net) train() {
 // backward adds the gradient of one sample's loss, which only touches the
 // output for the action taken.
 func (n *Net) backward(acts [][]float64, action int, grad float64) {
-	layers := n.Online.Layers
-	delta := make([]float64, layers[len(layers)-1].Out)
+	delta := make([]float64, n.Online.Layers[len(n.Online.Layers)-1].Out)
 	delta[action] = grad
+	n.backwardAll(acts, delta)
+}
+
+// backwardAll adds the gradient for a loss slope on every output at once.
+func (n *Net) backwardAll(acts [][]float64, delta []float64) {
+	layers := n.Online.Layers
 	for li := len(layers) - 1; li >= 0; li-- {
 		l, g := &layers[li], &n.grads[li]
 		in := acts[li]
@@ -402,10 +430,10 @@ func LoadNet(path string, seed uint64) (*Net, error) {
 	if err := gob.NewDecoder(f).Decode(loaded); err != nil {
 		return nil, fmt.Errorf("parse network %s: %w", path, err)
 	}
-	if len(loaded.Online.Layers) != 3 || loaded.Online.Layers[0].In != NumInputs {
-		return nil, fmt.Errorf("network %s was made by a different version of Buddy", path)
+	if l := loaded.Online.Layers; len(l) != 3 || l[0].In != NumInputs || l[2].Out != int(NumActions) {
+		return nil, fmt.Errorf("network %s: %w", path, ErrOldBrain)
 	}
-	loaded.rng, loaded.trainEvery, loaded.batches = n.rng, n.trainEvery, n.batches
+	loaded.rng, loaded.trainEvery, loaded.batches, loaded.margin = n.rng, n.trainEvery, n.batches, n.margin
 	return loaded, nil
 }
 
@@ -429,9 +457,35 @@ func (m *Memory) add(e Experience) {
 // decisions, not for training.
 func (n *Net) Activations(o Observation) [][]float64 {
 	x := Inputs(o)
-	return n.Online.forward(x[:])
+	acts := n.Online.forward(x[:])
+	q := values(acts[len(acts)-1])
+	acts[len(acts)-1] = q[:]
+	return acts
 }
 
 // Margin is how much better than staying quiet an attempt must look before
 // the network makes it.
-func (n *Net) Margin() float64 { return actMargin }
+func (n *Net) Margin() float64 { return n.margin }
+
+// SetMargin sets how much better than staying quiet an attempt must look
+// before the network makes it.
+func (n *Net) SetMargin(m float64) { n.margin = m }
+
+// ErrOldBrain means a saved brain doesn't fit this version of Buddy, for
+// example because Buddy has learned new actions since.
+var ErrOldBrain = errors.New("made by an older version of Buddy; run buddysim again")
+
+func (n *Net) ensureGrads() {
+	if n.grads == nil {
+		for _, l := range n.Online.Layers {
+			n.grads = append(n.grads, Layer{W: make([]float64, len(l.W)), B: make([]float64, len(l.B))})
+		}
+	}
+}
+
+func (n *Net) clearGrads() {
+	for i := range n.grads {
+		clear(n.grads[i].W)
+		clear(n.grads[i].B)
+	}
+}

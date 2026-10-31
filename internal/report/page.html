@@ -19,7 +19,7 @@
     --neg: #e34948;      /* worse than staying quiet */
     --neuron: 42, 120, 214;
     --quiet: #d9d7d0;
-    --a1: #2a78d6; --a2: #eb6834; --a3: #1baf7a; --a4: #eda100; --a5: #e87ba4; --a6: #008300;
+    --a1: #2a78d6; --a2: #eb6834; --a3: #1baf7a; --a4: #eda100; --a5: #e87ba4; --a6: #008300; --a7: #6250d6; --a8: #e34948;
     --ignored: #cfcdc6;
   }
   @media (prefers-color-scheme: dark) {
@@ -37,7 +37,7 @@
       --neg: #e66767;
       --neuron: 57, 135, 229;
       --quiet: #383835;
-      --a1: #3987e5; --a2: #d95926; --a3: #199e70; --a4: #c98500; --a5: #d55181; --a6: #008300;
+      --a1: #3987e5; --a2: #d95926; --a3: #199e70; --a4: #c98500; --a5: #d55181; --a6: #008300; --a7: #9085e9; --a8: #e66767;
       --ignored: #44443f;
     }
   }
@@ -116,7 +116,7 @@
     <ol class="steps">
       <li><strong>He looks.</strong> Which kind of app you're in, how busy your keyboard and mouse are, how long you've been at it, the time, and how annoyed he thinks you are.</li>
       <li><strong>He scores.</strong> His brain turns that into a score for each action. A click from you is worth +1, being sent away −2, and every attempt costs a little.</li>
-      <li><strong>He learns.</strong> After each try he nudges the scores toward what really happened, so next time he guesses better.</li>
+      <li><strong>He learns.</strong> Every reaction goes into his diary, a table that keeps exact tallies. Every couple of hours his neural network studies the diary, so next time he guesses better.</li>
     </ol>
     <div class="tiles" id="tiles"></div>
   </section>
@@ -179,8 +179,8 @@
 const D = {{.JSON}};
 const QUIET_SCORE = {{.QuietScore}}, SIM_SCORE = {{.SimScore}};
 const NS = "http://www.w3.org/2000/svg";
-const ACTION_COLOR = ["var(--quiet)", "var(--a1)", "var(--a2)", "var(--a3)", "var(--a4)", "var(--a5)", "var(--a6)"];
-const ACTION_NAME = { quiet: "stay quiet", fidget: "fidget", wave: "wave", bounce: "bounce", speak: "speak", chirp: "chirp", approach: "walk over" };
+const ACTION_COLOR = ["var(--quiet)", "var(--a1)", "var(--a2)", "var(--a3)", "var(--a4)", "var(--a5)", "var(--a6)", "var(--a7)", "var(--a8)"];
+const ACTION_NAME = { quiet: "stay quiet", fidget: "fidget", wave: "wave", bounce: "bounce", speak: "speak", chirp: "chirp", approach: "walk over", peek: "peek", emote: "emote" };
 const fmt = (v, d = 2) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(d);
 
 function el(name, attrs = {}, parent) {
@@ -208,8 +208,8 @@ function hover(target, html) {
 const tiles = document.getElementById("tiles");
 const tile = (big, label) => tiles.insertAdjacentHTML("beforeend", `<div class="tile"><div class="big">${big}</div><div class="label">${label}</div></div>`);
 tile(D.brain === "network" ? "Neural network" : "Q-table", D.brain === "network"
-  ? "his brain: 14 inputs, two layers of 32 neurons, one output per action"
-  : "his brain: a table of about 7,800 situations × 7 actions");
+  ? `his brain: ${D.network.sizes[0]} inputs, two layers of ${D.network.sizes[1]} neurons, one output per action`
+  : `his brain: a table of about 7,800 situations × ${D.actions.length} actions`);
 if (SIM_SCORE) tile(SIM_SCORE.toFixed(1), `reward per practice day against the simulated person (a Buddy who never says hi scores ${QUIET_SCORE.toFixed(1)})`);
 tile(Math.round(D.epsilon * 100) + "%", "of his decisions are random experiments, to keep discovering what you like");
 
@@ -238,7 +238,7 @@ function drawInputs(m) {
   // The six app inputs are one fact, which app; show it as one row.
   const app = m.inputs.slice(0, 6).find(x => x.value > 0);
   const rows = [{ name: "app", value: 1, text: app ? app.name.replace("app: ", "") : "other", whole: true },
-    ...m.inputs.slice(6, 9), { name: "time of day", value: 1, text: m.inputs[9].text, whole: true }, ...m.inputs.slice(11)];
+    ...m.inputs.slice(6, 9), { name: "time of day", value: 1, text: m.inputs[9].text, whole: true }, ...m.inputs.slice(11, 14)];
   const x0 = 120, w = 200, rh = 300 / rows.length;
   rows.forEach((r, i) => {
     const y = i * rh + rh / 2;
@@ -305,7 +305,7 @@ function drawNet(m) {
     const max = Math.max(...vals.map(Math.abs), 1e-9);
     col.forEach((p, i) => {
       const v = vals[i];
-      let fill, r = l === 0 || l === 3 ? 7 : 5.5;
+      let fill, r = Math.max(1.6, Math.min(l === 0 || l === 3 ? 7 : 5.5, (H - 20) / col.length / 2.6));
       if (l === 3) fill = i === m.best ? ACTION_COLOR[i] : "var(--surface-2)";
       else fill = v > 0 ? `rgba(var(--neuron), ${0.15 + 0.85 * Math.min(1, v / max)})` : "var(--surface-2)";
       const c = el("circle", { cx: p.x, cy: p.y, r, fill, stroke: "var(--line)", "stroke-width": 1.2 }, svg);
@@ -319,14 +319,16 @@ function drawNet(m) {
     });
   });
   text(svg, xs[0], 12, "what he sees", { "text-anchor": "middle", class: "strong" });
-  text(svg, xs[1], 12, "32 neurons", { "text-anchor": "middle", class: "strong" });
-  text(svg, xs[2], 12, "32 neurons", { "text-anchor": "middle", class: "strong" });
+  text(svg, xs[1], 12, sizes[1] + " neurons", { "text-anchor": "middle", class: "strong" });
+  text(svg, xs[2], 12, sizes[2] + " neurons", { "text-anchor": "middle", class: "strong" });
   text(svg, xs[3], 12, "what each action is worth", { "text-anchor": "start", class: "strong" });
 }
 
 if (D.network) {
+  const [nIn, h1, h2] = D.network.sizes;
   document.getElementById("netLead").textContent =
-    "Signals flow left to right. The 14 things Buddy sees feed two layers of 32 artificial neurons, which feed one output per action. " +
+    `Signals flow left to right. Buddy sees each moment two ways at once: as smooth numbers (the top 14 inputs) and as the buckets his diary table uses (the other ${nIn - 14}). ` +
+    `They feed two layers of ${h1} and ${h2} artificial neurons, which feed one output per action. ` +
     "Each line is a connection whose strength Buddy learned. Only the connections carrying the most signal right now are drawn: " +
     "blue ones push the next neuron up, red ones push it down. A neuron that ends up below zero switches off, which is how the network " +
     "learns rules like \"never chirp during a game\". Hover over anything for numbers.";

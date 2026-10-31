@@ -49,7 +49,7 @@ func run() (err error) {
 	var (
 		dir     = flag.String("data", def, "folder for what Buddy learns")
 		speak   = flag.Bool("voice", false, "also read speech bubbles aloud with the Windows voice")
-		choice  = flag.String("brain", "auto", "which brain to use: table, network, or auto for the one that scored better in buddysim")
+		choice  = flag.String("brain", "network", "which brain decides: network (with the table as its diary) or table")
 		verbose = flag.Bool("v", false, "log every decision")
 		show    = flag.Bool("report", false, "print what Buddy has learned and exit")
 		htmlOut = flag.String("report-html", "", "write the visual \"what has Buddy learned?\" page to this file and exit")
@@ -161,7 +161,9 @@ func run() (err error) {
 	return err
 }
 
-// loadBrain loads the brain to use and returns where to save it.
+// loadBrain loads the brain to use and returns where to save it. The
+// network decides, with the table as its diary; without a trained network
+// (or with -brain table) the table decides on its own.
 func loadBrain(dir, choice string) (rl.Learner, string, error) {
 	seed := uint64(time.Now().UnixNano())
 	tablePath, netPath := filepath.Join(dir, appdir.QTable), filepath.Join(dir, appdir.Net)
@@ -169,28 +171,22 @@ func loadBrain(dir, choice string) (rl.Learner, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	net, err := rl.LoadNet(netPath, seed)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, "", err
-	}
 	switch choice {
 	case "table":
 		return table, tablePath, nil
 	case "network":
-		if net == nil {
-			net = rl.NewNet(seed)
-		}
-		return net, netPath, nil
-	case "auto":
-		if net != nil && net.SimScore() > table.SimScore() {
-			return net, netPath, nil
-		}
-		if table.Steps == 0 {
-			slog.Info("Buddy knows nothing yet; run buddysim first for a head start")
-		}
+	default:
+		return nil, "", fmt.Errorf("-brain must be network or table, not %q", choice)
+	}
+	net, err := rl.LoadNet(netPath, seed)
+	switch {
+	case err == nil:
+		return rl.NewHybrid(net, table, tablePath, seed), netPath, nil
+	case errors.Is(err, fs.ErrNotExist), errors.Is(err, rl.ErrOldBrain):
+		slog.Warn("no neural network to use yet, so the table decides; run buddysim to train one", "err", err)
 		return table, tablePath, nil
 	}
-	return nil, "", fmt.Errorf("-brain must be table, network or auto, not %q", choice)
+	return nil, "", err
 }
 
 // setupLog sends logs to a file in the data folder, and to the console when

@@ -47,6 +47,8 @@ var poses = []pose{
 	{name: "chirp", start: command(brain.Command{Action: rl.Chirp}), still: 450 * time.Millisecond},
 	{name: "speak", start: command(brain.Command{Action: rl.Speak, Phrase: sample}), still: 2500 * time.Millisecond},
 	{name: "approach", start: command(brain.Command{Action: rl.Approach}), still: 200 * time.Millisecond},
+	{name: "peek", start: command(brain.Command{Action: rl.Peek}), still: 800 * time.Millisecond},
+	{name: "emote", start: command(brain.Command{Action: rl.Emote}), still: time.Second},
 	{name: "clicked", start: func(s *Scene) { s.Poke(t0) }, length: happyFor, still: 150 * time.Millisecond},
 	{
 		name:  "dragged",
@@ -294,6 +296,31 @@ func TestIconImage(t *testing.T) {
 		}
 		if opaque < size*size/4 {
 			t.Errorf("%dpx icon is only %d/%d opaque, Buddy should fill it", size, opaque, size*size)
+		}
+	}
+}
+
+// Every emote bubble draws its picture.
+func TestEmotes(t *testing.T) {
+	for e := range numEmotes {
+		s, err := NewScene(1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.Apply(brain.Command{Action: rl.Emote}, t0)
+		s.emote = e
+		img := s.Render(t0.Add(time.Second))
+		// The bubble sits up and to the right of Buddy's head.
+		inked := 0
+		for y := 70; y < 120; y++ {
+			for x := bodyX + 15; x < bodyX+60; x++ {
+				if c := img.RGBAAt(x, y); c.A > 200 && c.R < 0x80 {
+					inked++
+				}
+			}
+		}
+		if inked < 20 {
+			t.Errorf("emote %d: bubble picture missing (%d dark pixels)", e, inked)
 		}
 	}
 }
