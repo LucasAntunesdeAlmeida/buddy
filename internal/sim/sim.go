@@ -118,7 +118,9 @@ func (u *User) Advance(d time.Duration) {
 // How noticeable each action is, and how irritating it is when unwanted.
 var (
 	noticeable = [rl.NumActions]float64{rl.Quiet: 0, rl.Fidget: 0.05, rl.Wave: 0.35, rl.Bounce: 0.45, rl.Speak: 0.55, rl.Chirp: 0.7, rl.Approach: 0.55}
-	irritating = [rl.NumActions]float64{rl.Quiet: 0, rl.Fidget: 0.2, rl.Wave: 0.6, rl.Bounce: 0.8, rl.Speak: 0.7, rl.Chirp: 1.5, rl.Approach: 1.2}
+	// Walking over is about as welcome as a wave: a character coming to say hi
+	// is charming, not intrusive, as long as it picks its moment.
+	irritating = [rl.NumActions]float64{rl.Quiet: 0, rl.Fidget: 0.2, rl.Wave: 0.6, rl.Bounce: 0.8, rl.Speak: 0.7, rl.Chirp: 1.5, rl.Approach: 0.6}
 	// How welcome Buddy is in each kind of app.
 	openness = [activity.NumCategories]float64{
 		activity.Other: 0.55, activity.Code: 0.3, activity.Browser: 0.6,
@@ -182,6 +184,7 @@ func clamp(v, lo, hi float64) float64 { return math.Max(lo, math.Min(hi, v)) }
 type DayStats struct {
 	Reward     float64
 	Attention  int // attention actions taken
+	ByAction   [rl.NumActions]int
 	Clicks     int
 	Dismissals int
 }
@@ -189,6 +192,7 @@ type DayStats struct {
 // Score is DayStats averaged over several days.
 type Score struct {
 	Reward, Attention, Clicks, Dismissals float64
+	ByAction                              [rl.NumActions]float64 // per day
 }
 
 // Evaluate runs the learner's best policy, without exploring or learning,
@@ -202,9 +206,15 @@ func Evaluate(l rl.Learner, seed uint64, days int) Score {
 		s.Attention += float64(d.Attention)
 		s.Clicks += float64(d.Clicks)
 		s.Dismissals += float64(d.Dismissals)
+		for a, n := range d.ByAction {
+			s.ByAction[a] += float64(n)
+		}
 	}
 	n := float64(days)
-	return Score{s.Reward / n, s.Attention / n, s.Clicks / n, s.Dismissals / n}
+	for a := range s.ByAction {
+		s.ByAction[a] /= n
+	}
+	return Score{s.Reward / n, s.Attention / n, s.Clicks / n, s.Dismissals / n, s.ByAction}
 }
 
 // RunDay simulates one 24-hour day. If learn is true the agent is updated
@@ -251,6 +261,7 @@ func RunDay(u *User, agent rl.Learner, learn bool) DayStats {
 		if act.Attention() {
 			lastAction = now
 			stats.Attention++
+			stats.ByAction[act]++
 		}
 		switch r {
 		case rl.Clicked:

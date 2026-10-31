@@ -6,6 +6,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -75,20 +76,37 @@ func run() error {
 		start := time.Now()
 		user := sim.NewUser(*seed)
 		report(0)
+		// Learning wobbles from checkpoint to checkpoint, the network's most
+		// of all, so keep the best checkpoint rather than whichever came last.
 		step := max(1, j.days/10)
-		var last sim.Score
+		best, bestDay := math.Inf(-1), 0
 		for day := 1; day <= j.days; day++ {
 			sim.RunDay(user, j.learner, true)
-			if day%step == 0 {
-				last = report(day)
+			if day%step != 0 {
+				continue
+			}
+			if e := report(day); e.Reward > best {
+				best, bestDay = e.Reward, day
+				if err := j.learner.Save(j.path); err != nil {
+					return err
+				}
 			}
 		}
-		j.learner.SetSimScore(last.Reward)
-		scores[j.learner.Kind()] = last.Reward
-		if err := j.learner.Save(j.path); err != nil {
+
+		// Picking the best of several checkpoints flatters it, so score the
+		// kept brain again on simulated days it has never seen.
+		kept, err := load(j.learner.Kind(), j.path, *seed)
+		if err != nil {
 			return err
 		}
-		fmt.Printf("saved to %s (%s)\n", j.path, time.Since(start).Round(time.Second))
+		score := sim.Evaluate(kept, *seed+2000, 100).Reward
+		kept.SetSimScore(score)
+		if err := kept.Save(j.path); err != nil {
+			return err
+		}
+		scores[kept.Kind()] = score
+		fmt.Printf("kept the %s from day %d; it scores %.2f on fresh days; saved to %s (%s)\n",
+			kept.Kind(), bestDay, score, j.path, time.Since(start).Round(time.Second))
 	}
 
 	if len(scores) == 2 {
@@ -100,4 +118,12 @@ func run() error {
 			scores["table"], scores["network"], winner)
 	}
 	return nil
+}
+
+// load reads back a saved brain.
+func load(kind, path string, seed uint64) (rl.Learner, error) {
+	if kind == "network" {
+		return rl.LoadNet(path, seed)
+	}
+	return rl.Load(path, seed)
 }
