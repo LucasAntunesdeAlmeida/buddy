@@ -35,14 +35,13 @@ const logLimit = 1 << 20
 
 func main() {
 	if err := run(); err != nil {
-		slog.Error("buddy stopped", "err", err)
 		fmt.Fprintln(os.Stderr, "buddy:", err)
 		notify(err.Error())
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run() (err error) {
 	def, err := appdir.Default()
 	if err != nil {
 		return err
@@ -63,6 +62,12 @@ func run() error {
 		return err
 	}
 	defer closeLog()
+	defer func() {
+		// Log the error here, while the log file is still open.
+		if err != nil {
+			slog.Error("buddy stopped", "err", err)
+		}
+	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
