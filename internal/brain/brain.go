@@ -262,6 +262,9 @@ func (b *Brain) flush(o rl.Observation, all bool) {
 }
 
 func (b *Brain) record(ctx context.Context, s store.Step) {
+	// A step that happens as Buddy quits still belongs in the log.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
 	if err := b.Log.Add(ctx, s); err != nil {
 		slog.Warn("could not log step", "err", err)
 	}
