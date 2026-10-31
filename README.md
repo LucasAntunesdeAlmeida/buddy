@@ -18,8 +18,8 @@ These are the network's nine outputs. Choosing between them is what it learns.
 
 | | Action | What it looks like |
 |---|---|---|
-| | **Stay quiet** | Nothing extra. Most of the time this is the right call, and the network knows it. |
-| | **Fidget** | Peeks left, peeks right, hops back to the middle. Barely noticeable on purpose. |
+| ![stay quiet](docs/media/idle.gif) | **Stay quiet** | Nothing extra: he just breathes, blinks and sways his sprout. Most of the time this is the right call, and the network knows it. |
+| ![fidget](docs/media/fidget.gif) | **Fidget** | Peeks left, peeks right, hops back to the middle. Barely noticeable on purpose. |
 | ![wave](docs/media/wave.gif) | **Wave** | Raises a hand above his shoulder and waves, grinning. |
 | ![bounce](docs/media/bounce.gif) | **Bounce** | Two hops with a proper wind-up, stretch and landing squash. |
 | ![chirp](docs/media/chirp.gif) | **Chirp** | A quick hop, a little "o", a short chirp sound and two floating notes. |
