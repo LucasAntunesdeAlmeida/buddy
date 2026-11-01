@@ -11,10 +11,14 @@
 # and activity log are personal.
 *.gob
 *.db
+*.db-wal
+*.db-shm
 *.log
 qtable.json
-qtable.json.old
+qtable.json.old*
 said.json
+settings.json
+what-buddy-learned.html
 
 # Local Go workspaces.
 go.work
