@@ -171,6 +171,18 @@ You need Windows 10 or 11. To build from source you also need [Go](https://go.de
 
 His network has already done its practice: it's in the `brain` folder of the zip, and he copies it to `%AppData%\buddy` the first time he runs.
 
+**Windows may warn you.** The release isn't code-signed, so SmartScreen can show "Windows protected your PC". Choose *More info*, then *Run anyway*, if you trust the download. To check it's the file CI built, compare this with the `.sha256` file on the Releases page:
+
+```powershell
+Get-FileHash buddy-<version>-windows-amd64.zip -Algorithm SHA256
+```
+
+### Uninstalling
+
+1. Turn off *Start with Windows* in the tray menu, if it's on. Otherwise a dead entry stays in your sign-in programs.
+2. Quit Buddy.
+3. Delete the folder you unzipped him into, and `%AppData%\buddy`.
+
 ### From source
 
 ```sh
@@ -249,10 +261,14 @@ Everything Buddy knows lives in one folder, `%AppData%\buddy`. Delete it and he 
 |---|---|
 | `network.gob` | His neural network: weights, numbers only |
 | `qtable.json` | His diary table: scores and counts per situation, numbers only |
-| `buddy.db` | A log of his attempts and your reactions, with only the coarse situation (like `code/active/input-high/app-1h+/evening/calm/last-15m+`) |
+| `buddy.db` | A log of his attempts and your reactions: the exact time of each, with only the coarse situation (like `code/active/input-high/app-1h+/evening/calm/last-15m+`). It's never pruned, so it shows when you were around for as long as you keep it |
 | `said.json` | The lines he said recently |
 | `settings.json` | Your tray menu choices |
 | `buddy.log` | Diagnostics, kept under 1 MB |
+| `what-buddy-learned.html` | The report page, rewritten each time you open it from the tray menu |
+| `qtable.json.old`, then `.old.2` and so on | An old diary table set aside to make way for a new one, if that ever happened. These are never overwritten |
+
+*Start with Windows* also adds one entry, named `Buddy`, to your sign-in programs in the registry.
 
 He never stores window titles, never records keystrokes (there are no keyboard hooks at all), takes no screenshots, and never connects to the internet. The real moments the network studies are kept in memory only.
 
@@ -279,7 +295,7 @@ The table learns exactly, but only about situations it has seen, and it splits t
 He shouldn't: he goes still whenever an app is using your microphone or camera. If your meeting app doesn't register microphone use with Windows (for example, you're muted at the system level), the rule can't see it. Use *Pause for 1 hour* from the tray.
 
 **Can I reset him?**
-Quit Buddy, delete `%AppData%\buddy`, and run `buddysim` again.
+Quit Buddy and delete `%AppData%\buddy`. A release copies a fresh network the next time he starts; from source, run `buddysim` again first.
 
 ---
 
@@ -299,7 +315,9 @@ internal/ui        the transparent window, the drawing, animations, tray menu
 internal/voice     what Buddy says, and the optional Windows voice
 internal/settings  tray menu switches
 internal/autostart start with Windows
+internal/appdir    the data folder, and installing the brains a release ships with
 tools/mkres        draws Buddy's icon into buddy.exe
+tools/mknotices    collects the licenses of everything in the release
 ```
 
 Everything is written in Go with no machine-learning framework and no graphics engine. The network's forward pass, backpropagation, Adam optimizer and dueling head are in `internal/rl/net.go`, and distillation is in `internal/rl/distill.go`: plain code you can read.
@@ -318,4 +336,4 @@ The race detector needs cgo and a C compiler, so `go test -race` only works wher
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). A release also carries `THIRD_PARTY_NOTICES.txt`, with the licenses of the libraries built into it.
