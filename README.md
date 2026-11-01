@@ -162,7 +162,7 @@ Mar 9          22       12         55%          1
 
 ## Getting started
 
-You need Windows 10 or 11. To build from source you also need [Go](https://go.dev/dl/) 1.26 or newer. No C compiler is needed.
+You need Windows 10 or 11. To build from source you also need [Go](https://go.dev/dl/) 1.26.10 or newer. No C compiler is needed.
 
 ### From a release
 

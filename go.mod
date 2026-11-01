@@ -1,6 +1,6 @@
 module github.com/LucasAntunesdeAlmeida/buddy
 
-go 1.26.5
+go 1.26.10
 
 require (
 	github.com/go-ole/go-ole v1.3.0
