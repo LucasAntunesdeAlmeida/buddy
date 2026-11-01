@@ -124,7 +124,8 @@ func (w *Watcher) poll() {
 			w.since = now
 			notable = true
 		}
-		w.cat = activity.Classify(w.exe, windowTitle(hwnd), fullscreen(hwnd))
+		title := func() string { return windowTitle(hwnd) }
+		w.cat = activity.Classify(w.exe, title, fullscreen(hwnd))
 	}
 
 	info := lastInputInfo{size: uint32(unsafe.Sizeof(lastInputInfo{}))}

@@ -80,12 +80,13 @@ var byProcess = map[string]Category{
 var mediaTitleWords = []string{"youtube", "netflix", "twitch", "prime video", "disney+", "crunchyroll"}
 
 // Classify maps a foreground window to a category. exe may be a full path.
-// The title is only used here and is never stored.
-func Classify(exe, title string, fullscreen bool) Category {
+// The title is asked for only when the app is a browser, to tell a video site
+// from the rest, and is never stored.
+func Classify(exe string, title func() string, fullscreen bool) Category {
 	name := strings.ToLower(filepath.Base(exe))
 	cat, ok := byProcess[name]
 	if cat == Browser {
-		t := strings.ToLower(title)
+		t := strings.ToLower(title())
 		for _, w := range mediaTitleWords {
 			if strings.Contains(t, w) {
 				return Media
