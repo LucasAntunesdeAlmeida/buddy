@@ -144,7 +144,7 @@ func run() (err error) {
 	// from its menu or ctx is canceled (Ctrl+C).
 	err = ui.Run(ctx, commands, reactions, ui.Options{
 		Settings:  prefs,
-		Autostart: autostart.New(),
+		Autostart: autostart.New(startArgs(flag.CommandLine)...),
 		Report: func() (string, error) {
 			path := filepath.Join(*dir, "what-buddy-learned.html")
 			f, err := os.Create(path)
@@ -159,6 +159,23 @@ func run() (err error) {
 	finish()
 	slog.Info("Buddy is asleep for good, see you next time")
 	return err
+}
+
+// startArgs returns the flags that were set, for starting Buddy the same way
+// at sign-in. Windows won't start him from this folder, so -data has to be
+// absolute.
+func startArgs(fs *flag.FlagSet) []string {
+	var args []string
+	fs.Visit(func(f *flag.Flag) {
+		v := f.Value.String()
+		if f.Name == "data" {
+			if abs, err := filepath.Abs(v); err == nil {
+				v = abs
+			}
+		}
+		args = append(args, "-"+f.Name+"="+v)
+	})
+	return args
 }
 
 // loadBrain loads the brain to use and returns where to save it. The

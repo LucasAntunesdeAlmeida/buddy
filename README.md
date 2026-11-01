@@ -232,6 +232,8 @@ Buddy stays completely still and silent while you're **on a call** (any app usin
 | `-data` | `%AppData%\buddy` | Where Buddy keeps what he learns |
 | `-v` | off | Log every decision |
 
+*Start with Windows* remembers the flags Buddy was running with when you turned it on. To change them, turn it off and on again.
+
 `buddysim` takes `-days` (how long the table practices), `-nets` (how many networks train side by side), `-rounds` (how many DAgger rounds each network drives), `-net-hidden` (neurons per layer), `-seed`, and `-force` to replace brains that already exist. Replacing them makes Buddy forget what he learned from you.
 
 ---

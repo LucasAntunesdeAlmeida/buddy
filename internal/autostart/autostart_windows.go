@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -18,12 +19,15 @@ const (
 )
 
 // Entry is Buddy's sign-in entry.
-type Entry struct{ exe string }
+type Entry struct {
+	exe  string
+	args []string
+}
 
-// New returns the entry for the running buddy.exe.
-func New() *Entry {
+// New returns the entry for the running buddy.exe, started with args.
+func New(args ...string) *Entry {
 	exe, _ := os.Executable()
-	return &Entry{exe: exe}
+	return &Entry{exe: exe, args: args}
 }
 
 // Available reports whether this exe will still exist after a restart. A
@@ -36,9 +40,25 @@ func (e *Entry) Available() bool {
 	return !strings.HasPrefix(exe, tmp) && !strings.Contains(exe, `\go-build`)
 }
 
-func (e *Entry) command() string { return `"` + filepath.Clean(e.exe) + `"` }
+func (e *Entry) quotedExe() string { return `"` + filepath.Clean(e.exe) + `"` }
 
-// Enabled reports whether Buddy starts with Windows, as this exe.
+func (e *Entry) command() string {
+	cmd := e.quotedExe()
+	for _, a := range e.args {
+		cmd += " " + windows.EscapeArg(a)
+	}
+	return cmd
+}
+
+// starts reports whether a sign-in command starts this exe, with any flags.
+func (e *Entry) starts(command string) bool {
+	command, exe := strings.ToLower(command), strings.ToLower(e.quotedExe())
+	return command == exe || strings.HasPrefix(command, exe+" ")
+}
+
+// Enabled reports whether Buddy starts with Windows, as this exe. The flags
+// don't matter: Buddy started by hand with other flags still starts with
+// Windows, and the tray menu should say so.
 func (e *Entry) Enabled() bool {
 	k, err := registry.OpenKey(registry.CURRENT_USER, runKey, registry.QUERY_VALUE)
 	if err != nil {
@@ -46,7 +66,7 @@ func (e *Entry) Enabled() bool {
 	}
 	defer k.Close()
 	v, _, err := k.GetStringValue(name)
-	return err == nil && strings.EqualFold(v, e.command())
+	return err == nil && e.starts(v)
 }
 
 // Set turns starting with Windows on or off.

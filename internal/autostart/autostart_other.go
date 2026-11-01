@@ -9,7 +9,7 @@ import "errors"
 type Entry struct{}
 
 // New returns a stand-in.
-func New() *Entry { return &Entry{} }
+func New(...string) *Entry { return &Entry{} }
 
 // Available is always false.
 func (e *Entry) Available() bool { return false }
