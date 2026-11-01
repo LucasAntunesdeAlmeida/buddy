@@ -12,7 +12,7 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30 # the build includes training Buddy's network
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

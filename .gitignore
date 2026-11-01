@@ -13,6 +13,7 @@
 *.db
 *.log
 qtable.json
+qtable.json.old
 said.json
 
 # Local Go workspaces.

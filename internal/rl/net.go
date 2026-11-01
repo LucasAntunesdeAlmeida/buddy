@@ -473,7 +473,7 @@ func (n *Net) SetMargin(m float64) { n.margin = m }
 
 // ErrOldBrain means a saved brain doesn't fit this version of Buddy, for
 // example because Buddy has learned new actions since.
-var ErrOldBrain = errors.New("made by an older version of Buddy; run buddysim again")
+var ErrOldBrain = errors.New("made by an older version of Buddy; run buddysim -force to train a new one")
 
 func (n *Net) ensureGrads() {
 	if n.grads == nil {

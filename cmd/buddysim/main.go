@@ -48,9 +48,18 @@ func run() error {
 		return err
 	}
 	tablePath, netPath := filepath.Join(*data, appdir.QTable), filepath.Join(*data, appdir.Net)
-	for _, path := range []string{tablePath, netPath} {
-		if _, err := os.Stat(path); err == nil && !*force {
-			return fmt.Errorf("%s already exists; pass -force to replace it", path)
+	if !*force {
+		if _, err := os.Stat(netPath); err == nil {
+			return fmt.Errorf("%s already exists; pass -force to replace it, and Buddy forgets what he learned from you", netPath)
+		}
+		// A table with no network to go with it isn't worth stopping for:
+		// practice was interrupted, or an older Buddy left it.
+		kept, err := appdir.SetAsideTable(*data)
+		if err != nil {
+			return err
+		}
+		if kept != "" {
+			fmt.Printf("Found a table with no network; keeping it as %s and starting over.\n", kept)
 		}
 	}
 	// Every brain is judged on the same simulated days, so scores compare.

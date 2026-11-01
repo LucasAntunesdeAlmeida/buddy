@@ -103,7 +103,7 @@ This is reinforcement learning rather than "learn what gets clicks", because his
 
 The network learns in two stages: practice against a simulated person before you meet, then the real thing.
 
-**1. Practice.** A brand-new network would be clueless, and random experiments on a real person are annoying. So `buddysim` lets Buddy practice against a **simulated person**: a toy model of someone who codes, browses, games, watches videos, takes breaks and goes to bed. It's built on common sense (don't interrupt games, people like a hello after a break, and people stop noticing something that moves all the time), not on data about anyone. Practice takes a few minutes:
+**1. Practice.** A brand-new network would be clueless, and random experiments on a real person are annoying. So `buddysim` lets Buddy practice against a **simulated person**: a toy model of someone who codes, browses, games, watches videos, takes breaks and goes to bed. It's built on common sense (don't interrupt games, people like a hello after a break, and people stop noticing something that moves all the time), not on data about anyone. Practice takes a few minutes, and a release comes with it already done:
 
 1. **A lookup table practices** for 2,000 simulated days by trial and error. It has a row for each of about 7,800 situations, and keeps exact running averages of how each action went.
 2. **Three networks copy the table** side by side, each learning to give the table's scores on moments the table actually met (*distillation*).
@@ -167,8 +167,9 @@ You need Windows 10 or 11. To build from source you also need [Go](https://go.de
 ### From a release
 
 1. Download `buddy-<version>-windows-amd64.zip` from the [Releases page](https://github.com/LucasAntunesdeAlmeida/buddy/releases) and unzip it anywhere you like.
-2. Run `buddysim.exe` once. Buddy practices for a few minutes and saves his network.
-3. Run `buddy.exe`. Buddy appears at the bottom right of your screen and in the notification area.
+2. Run `buddy.exe`. Buddy appears at the bottom right of your screen and in the notification area.
+
+His network has already done its practice: it's in the `brain` folder of the zip, and he copies it to `%AppData%\buddy` the first time he runs.
 
 ### From source
 
@@ -177,7 +178,9 @@ go run ./cmd/buddysim      # practice first, takes a few minutes
 go run ./cmd/buddy         # meet Buddy
 ```
 
-To build a release zip with Buddy's icon and no console window:
+Buddy won't start until his network has practiced.
+
+To build a release zip with Buddy's icon, no console window and a practiced network (training takes a few minutes):
 
 ```powershell
 .\scripts\build.ps1 -Version 1.0.0     # writes dist\buddy-1.0.0-windows-amd64.zip
@@ -234,7 +237,7 @@ Buddy stays completely still and silent while you're **on a call** (any app usin
 
 *Start with Windows* remembers the flags Buddy was running with when you turned it on. To change them, turn it off and on again.
 
-`buddysim` takes `-days` (how long the table practices), `-nets` (how many networks train side by side), `-rounds` (how many DAgger rounds each network drives), `-net-hidden` (neurons per layer), `-seed`, and `-force` to replace brains that already exist. Replacing them makes Buddy forget what he learned from you.
+`buddysim` takes `-days` (how long the table practices), `-nets` (how many networks train side by side), `-rounds` (how many DAgger rounds each network drives), `-net-hidden` (neurons per layer), `-seed`, and `-force` to replace brains that already exist. Replacing them makes Buddy forget what he learned from you. If it finds a table with no network, say from an interrupted practice, it keeps that table as `qtable.json.old` and starts over.
 
 ---
 

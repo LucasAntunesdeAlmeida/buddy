@@ -73,7 +73,13 @@ func run() (err error) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	learner, savePath, err := loadBrain(*dir, *choice)
+	shipped, release, err := claim(*show || *htmlOut != "")
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	learner, savePath, err := loadBrain(*dir, shipped, *choice)
 	if err != nil {
 		return err
 	}
@@ -95,12 +101,6 @@ func run() (err error) {
 		defer f.Close()
 		return report.WriteHTML(ctx, f, locked, log, time.Now())
 	}
-
-	release, err := claimInstance()
-	if err != nil {
-		return err
-	}
-	defer release()
 
 	var speaker brain.Speaker
 	if *speak {
@@ -178,32 +178,65 @@ func startArgs(fs *flag.FlagSet) []string {
 	return args
 }
 
-// loadBrain loads the brain to use and returns where to save it. The
-// network decides, with the table as its diary; without a trained network
-// (or with -brain table) the table decides on its own.
-func loadBrain(dir, choice string) (rl.Learner, string, error) {
+// errNoNetwork means there's no network, and none came with this Buddy.
+var errNoNetwork = errors.New("Buddy has no trained network yet. Run buddysim first; it takes a few minutes")
+
+// claim makes this the only Buddy, and returns the folder of brains it may
+// install. Installing changes the data folder, so it has to happen after the
+// claim. A report can still be made beside a running Buddy, but only from
+// what's already there, so it gets no folder to install from.
+func claim(report bool) (shipped string, release func(), err error) {
+	release, err = claimInstance()
+	switch {
+	case err == nil:
+		return shippedBrains(), release, nil
+	case report && errors.Is(err, errAlreadyRunning):
+		return "", func() {}, nil
+	}
+	return "", nil, err
+}
+
+// shippedBrains returns the folder of brains next to this exe. A go run
+// build has none, and looking there finds nothing.
+func shippedBrains() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(exe), appdir.ShippedBrains)
+}
+
+// loadBrain loads the brain to use and returns where to save it. The network
+// decides, with the table as its diary, and on first run it comes from the
+// shipped folder. Without one Buddy refuses to start rather than quietly
+// running on a table that has never practiced. The table only decides on its
+// own when asked to, with -brain table.
+func loadBrain(dir, shipped, choice string) (rl.Learner, string, error) {
+	if choice != "network" && choice != "table" {
+		return nil, "", fmt.Errorf("-brain must be network or table, not %q", choice)
+	}
+	if choice == "network" {
+		if err := appdir.InstallBrains(shipped, dir); err != nil {
+			return nil, "", err
+		}
+	}
 	seed := uint64(time.Now().UnixNano())
 	tablePath, netPath := filepath.Join(dir, appdir.QTable), filepath.Join(dir, appdir.Net)
 	table, err := rl.Load(tablePath, seed)
 	if err != nil {
 		return nil, "", err
 	}
-	switch choice {
-	case "table":
+	if choice == "table" {
 		return table, tablePath, nil
-	case "network":
-	default:
-		return nil, "", fmt.Errorf("-brain must be network or table, not %q", choice)
 	}
 	net, err := rl.LoadNet(netPath, seed)
-	switch {
-	case err == nil:
-		return rl.NewHybrid(net, table, tablePath, seed), netPath, nil
-	case errors.Is(err, fs.ErrNotExist), errors.Is(err, rl.ErrOldBrain):
-		slog.Warn("no neural network to use yet, so the table decides; run buddysim to train one", "err", err)
-		return table, tablePath, nil
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, "", errNoNetwork
 	}
-	return nil, "", err
+	if err != nil {
+		return nil, "", err
+	}
+	return rl.NewHybrid(net, table, tablePath, seed), netPath, nil
 }
 
 // setupLog sends logs to a file in the data folder, and to the console when
