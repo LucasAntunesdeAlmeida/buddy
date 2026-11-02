@@ -129,7 +129,7 @@ Getting a network to learn this well took a few failed attempts, and they shaped
 - **A loophole in the simulated person.** At first, fidgeting every 30 seconds earned more clicks than any real hello, because it cost nothing and never wore off, and every brain learned to fidget nonstop. Making the simulated person habituate to constant movement, like a real one, closed it. Reinforcement learning finds loopholes like this whenever the reward allows them, so the practice partner has to be realistic.
 - **A bigger network** didn't help at first, at 32 or 64 neurons per layer. It started to matter once the network had to copy the table closely, which is why it has 128.
 
-The network doesn't quite match the table it learns from yet, in simulation. It gets much of the way, clearly beats staying silent, and uses every kind of hello. Closing that gap is ongoing work.
+The network doesn't match the table it learns from yet, in simulation. It gains about half of what the table gains over staying silent, and gets sent away more often. It still clearly beats silence and uses every kind of hello. Closing that gap is ongoing work.
 
 ### Look inside
 
